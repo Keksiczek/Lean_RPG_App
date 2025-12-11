@@ -1,0 +1,9 @@
+{
+  "name": "Lean RPG",
+  "description": "A gamified educational application for learning Lean manufacturing methodologies like 5S and Ishikawa diagrams in a virtual automotive environment.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

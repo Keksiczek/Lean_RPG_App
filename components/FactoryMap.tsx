@@ -1,60 +1,12 @@
 import React, { useState } from 'react';
 import { ViewState, Workplace } from '../types';
-import { Factory, AlertTriangle, CheckCircle, Package, Settings, Users, ArrowRight, ScanLine } from 'lucide-react';
+import { Factory, AlertCircle, CheckCircle, Package, Settings, Users, ArrowRight, ScanLine, ShieldCheck, ClipboardList, XCircle } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { WORKPLACES } from '../constants';
 
 interface FactoryMapProps {
-  onNavigate: (view: ViewState, isRealWorld?: boolean) => void;
+  onNavigate: (view: ViewState, isRealWorld?: boolean, contextData?: any) => void;
 }
-
-// Mock Data for Workplaces
-const WORKPLACES: Workplace[] = [
-  {
-    id: 'wp-1',
-    name: 'Assembly Line A',
-    type: 'production',
-    coordinates: { x: 20, y: 30 },
-    status: 'warning',
-    redTags: 2,
-    activeTrainingModules: 1
-  },
-  {
-    id: 'wp-2',
-    name: 'Paint Shop',
-    type: 'production',
-    coordinates: { x: 50, y: 20 },
-    status: 'optimal',
-    redTags: 0,
-    activeTrainingModules: 2
-  },
-  {
-    id: 'wp-3',
-    name: 'Warehouse Dispatch',
-    type: 'logistics',
-    coordinates: { x: 80, y: 40 },
-    status: 'critical',
-    redTags: 5,
-    activeTrainingModules: 1
-  },
-  {
-    id: 'wp-4',
-    name: 'QA Lab',
-    type: 'quality',
-    coordinates: { x: 30, y: 70 },
-    status: 'optimal',
-    redTags: 0,
-    activeTrainingModules: 1
-  },
-  {
-    id: 'wp-5',
-    name: 'Manager Office',
-    type: 'office',
-    coordinates: { x: 70, y: 75 },
-    status: 'warning',
-    redTags: 1,
-    activeTrainingModules: 0
-  }
-];
 
 const FactoryMap: React.FC<FactoryMapProps> = ({ onNavigate }) => {
   const [selectedWorkplace, setSelectedWorkplace] = useState<Workplace | null>(null);
@@ -62,10 +14,19 @@ const FactoryMap: React.FC<FactoryMapProps> = ({ onNavigate }) => {
 
   const getStatusColor = (status: string) => {
     switch(status) {
-      case 'optimal': return 'bg-emerald-600';
-      case 'warning': return 'bg-amber-500';
-      case 'critical': return 'bg-red-600';
-      default: return 'bg-gray-500';
+      case 'optimal': return 'bg-emerald-600 border-emerald-400';
+      case 'warning': return 'bg-amber-500 border-amber-300';
+      case 'critical': return 'bg-red-600 border-red-400';
+      default: return 'bg-gray-500 border-gray-400';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch(status) {
+      case 'optimal': return <CheckCircle className="w-3 h-3 text-white" />;
+      case 'warning': return <AlertCircle className="w-3 h-3 text-white" />;
+      case 'critical': return <XCircle className="w-3 h-3 text-white" />;
+      default: return null;
     }
   };
 
@@ -116,30 +77,51 @@ const FactoryMap: React.FC<FactoryMapProps> = ({ onNavigate }) => {
             style={{ top: `${wp.coordinates.y}%`, left: `${wp.coordinates.x}%` }}
           >
             <div className="relative">
-              <div className={`w-12 h-12 rounded-sm shadow-lg flex items-center justify-center border-2 border-white ${getStatusColor(wp.status)}`}>
+              <div className={`w-12 h-12 rounded-lg shadow-xl flex items-center justify-center border-b-4 ${getStatusColor(wp.status)}`}>
                 {getIcon(wp.type)}
               </div>
               
-              {/* Badges */}
+              {/* Status Badge Icon */}
+              <div className={`absolute -top-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center border border-white shadow-sm ${
+                wp.status === 'optimal' ? 'bg-emerald-600' : wp.status === 'warning' ? 'bg-amber-500' : 'bg-red-600'
+              }`}>
+                {getStatusIcon(wp.status)}
+              </div>
+
+              {/* Red Tag Counter */}
               {wp.redTags > 0 && (
                 <div className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border border-white shadow-sm animate-pulse">
                   {wp.redTags}
                 </div>
               )}
             </div>
-            <div className="mt-2 bg-gray-900/90 backdrop-blur-sm px-3 py-1 rounded-sm text-xs font-bold text-white whitespace-nowrap shadow-sm">
-                {wp.name}
+            <div className="mt-2 bg-gray-900/90 backdrop-blur-sm px-3 py-1.5 rounded-md text-xs font-bold text-white whitespace-nowrap shadow-sm flex flex-col items-center">
+                <span>{wp.name}</span>
+                <span className={`text-[9px] uppercase tracking-wider ${
+                    wp.status === 'optimal' ? 'text-emerald-400' : wp.status === 'warning' ? 'text-amber-400' : 'text-red-400'
+                }`}>
+                    {wp.status}
+                </span>
             </div>
           </button>
         ))}
 
         {/* Selection Modal / Popover */}
         {selectedWorkplace && (
-          <div className="absolute bottom-6 left-6 right-6 md:left-auto md:right-6 md:w-80 bg-white rounded-xl shadow-2xl p-5 border border-gray-200 animate-slide-up z-30">
+          <div className="absolute bottom-6 left-6 right-6 md:left-auto md:right-6 md:w-96 bg-white rounded-xl shadow-2xl p-5 border border-gray-200 animate-slide-up z-30 flex flex-col max-h-[80%]">
             <div className="flex justify-between items-start mb-4">
                <div>
-                  <h3 className="font-bold text-lg text-gray-900">{selectedWorkplace.name}</h3>
-                  <span className="text-xs font-medium text-gray-500 uppercase">{selectedWorkplace.type} Zone</span>
+                  <h3 className="font-bold text-xl text-gray-900">{selectedWorkplace.name}</h3>
+                  <div className="flex items-center space-x-2 mt-1">
+                      <span className="text-xs font-bold text-gray-500 uppercase px-2 py-0.5 bg-gray-100 rounded">{selectedWorkplace.type} Zone</span>
+                      <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded flex items-center ${
+                          selectedWorkplace.status === 'optimal' ? 'bg-emerald-100 text-emerald-800' : 
+                          selectedWorkplace.status === 'warning' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                          {getStatusIcon(selectedWorkplace.status)}
+                          <span className="ml-1">{selectedWorkplace.status}</span>
+                      </span>
+                  </div>
                </div>
                <button onClick={() => setSelectedWorkplace(null)} className="text-gray-400 hover:text-gray-600">
                  <span className="sr-only">Close</span>
@@ -150,34 +132,52 @@ const FactoryMap: React.FC<FactoryMapProps> = ({ onNavigate }) => {
             <div className="space-y-3 mb-6">
                 <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
                     <div className="flex items-center">
-                        <AlertTriangle className="w-4 h-4 text-red-600 mr-2" />
+                        <AlertCircle className="w-4 h-4 text-red-600 mr-2" />
                         <span className="text-sm font-medium text-gray-700">{t('map.redTags')}</span>
                     </div>
                     <span className="font-bold text-gray-900">{selectedWorkplace.redTags}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-gray-100 rounded-lg border border-gray-200">
-                    <div className="flex items-center">
-                        <Factory className="w-4 h-4 text-gray-600 mr-2" />
-                        <span className="text-sm font-medium text-gray-700">Simulations</span>
-                    </div>
-                    <span className="font-bold text-gray-900">{selectedWorkplace.activeTrainingModules} {t('map.available')}</span>
-                </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* CHECKLIST SECTION */}
+            <div className="flex-1 overflow-y-auto mb-4 border-t border-b border-gray-100 py-3">
+                <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-bold text-gray-800 flex items-center">
+                        <ClipboardList className="w-4 h-4 mr-2 text-blue-600" />
+                        Standard 5S Checklist
+                    </h4>
+                    <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded cursor-pointer hover:bg-blue-100">Edit (Admin)</span>
+                </div>
+                <ul className="space-y-2">
+                    {selectedWorkplace.checklist.map((item, idx) => (
+                        <li key={idx} className="text-xs text-gray-600 flex items-start">
+                            <span className="mr-2 text-gray-400">•</span>
+                            {item}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-auto">
                 <button 
-                  onClick={() => onNavigate(ViewState.GAME_AUDIT, true)}
-                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-bold flex items-center justify-center transition-colors shadow-md"
+                  onClick={() => onNavigate(ViewState.GAME_AUDIT, true, { checklist: selectedWorkplace.checklist, context: selectedWorkplace.name })}
+                  className="bg-red-600 hover:bg-red-700 text-white py-2.5 px-4 rounded-lg text-sm font-bold flex items-center justify-center transition-colors shadow-md"
                 >
                     <ScanLine className="w-4 h-4 mr-2" /> {t('map.scan')}
                 </button>
                 <button 
-                  onClick={() => onNavigate(ViewState.GAME_HUB)}
-                  className="bg-gray-800 hover:bg-gray-900 text-white py-2 px-4 rounded-lg text-sm font-bold flex items-center justify-center transition-colors shadow-md"
+                  onClick={() => onNavigate(ViewState.GAME_LPA, true, { checklist: selectedWorkplace.checklist, context: selectedWorkplace.name })}
+                  className="bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-4 rounded-lg text-sm font-bold flex items-center justify-center transition-colors shadow-md"
                 >
-                    {t('map.train')} <ArrowRight className="w-4 h-4 ml-1" />
+                    <ShieldCheck className="w-4 h-4 mr-2" /> {t('map.lpa')}
                 </button>
             </div>
+            <button 
+              onClick={() => onNavigate(ViewState.GAME_HUB, false)}
+              className="w-full mt-3 bg-gray-800 hover:bg-gray-900 text-white py-2 px-4 rounded-lg text-sm font-bold flex items-center justify-center transition-colors shadow-md"
+            >
+                {t('map.train')} <ArrowRight className="w-4 h-4 ml-1" />
+            </button>
           </div>
         )}
       </div>

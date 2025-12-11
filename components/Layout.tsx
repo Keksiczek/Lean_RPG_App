@@ -1,26 +1,35 @@
 import React from 'react';
 import { ViewState, Player } from '../types';
-import { LayoutDashboard, Gamepad2, Trophy, LogOut, Menu, X, Map, Globe } from 'lucide-react';
+import { LayoutDashboard, Gamepad2, LogOut, Menu, X, Map, Award, ClipboardList, BarChart2 } from 'lucide-react';
 import StatsBar from './StatsBar';
+import NotificationCenter from './NotificationCenter';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface LayoutProps {
   children: React.ReactNode;
   activeView: ViewState;
-  setView: (view: ViewState) => void;
+  onNavigate: (view: ViewState, data?: any) => void; // Updated prop definition
+  setView?: (view: ViewState) => void; // Optional legacy prop support
   player: Player;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeView, setView, player }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, setView, player }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const { language, setLanguage, t } = useLanguage();
 
+  // Helper to support both new onNavigate and legacy setView
+  const handleNavigation = (view: ViewState, data?: any) => {
+    if (onNavigate) {
+        onNavigate(view, data);
+    } else if (setView) {
+        setView(view);
+    }
+    setIsSidebarOpen(false);
+  };
+
   const NavItem = ({ view, icon: Icon, label }: { view: ViewState; icon: any; label: string }) => (
     <button
-      onClick={() => {
-        setView(view);
-        setIsSidebarOpen(false);
-      }}
+      onClick={() => handleNavigation(view)}
       className={`flex items-center w-full px-4 py-3 rounded-lg transition-colors border-l-4 ${
         activeView === view
           ? 'bg-red-600 text-white border-red-800 shadow-md'
@@ -61,21 +70,30 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setView, player }
           </div>
 
           <div className="flex-1 px-4 py-6 space-y-2">
-            <div className="mb-6 px-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Menu</p>
-              <NavItem view={ViewState.DASHBOARD} icon={LayoutDashboard} label={t('menu.dashboard')} />
-              <NavItem view={ViewState.FACTORY_MAP} icon={Map} label={t('menu.factoryMap')} />
-              <NavItem view={ViewState.GAME_HUB} icon={Gamepad2} label={t('menu.workplaceHub')} />
+            {/* Desktop Notification Placement */}
+            <div className="mb-4 px-4 flex justify-between items-center">
+               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Menu</span>
+               <div className="hidden md:block">
+                 <NotificationCenter onNavigate={handleNavigation} />
+               </div>
             </div>
+
+            <NavItem view={ViewState.DASHBOARD} icon={LayoutDashboard} label={t('menu.dashboard')} />
+            <NavItem view={ViewState.TASKS} icon={ClipboardList} label={t('menu.tasks')} />
+            <NavItem view={ViewState.FACTORY_MAP} icon={Map} label={t('menu.factoryMap')} />
+            <NavItem view={ViewState.GAME_HUB} icon={Gamepad2} label={t('menu.workplaceHub')} />
+            <NavItem view={ViewState.LEADERBOARD} icon={BarChart2} label={t('menu.leaderboard')} />
+            <NavItem view={ViewState.SKILLS} icon={Award} label={t('menu.skills')} />
+          </div>
             
-            <div className="px-4 mt-auto">
+          <div className="px-4 mt-auto mb-2">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{t('menu.player')}</p>
               {/* Integrated StatsBar for Real-time Updates */}
               <StatsBar player={player} />
-            </div>
+          </div>
 
-            {/* Language Switcher */}
-            <div className="px-4 pt-4 border-t border-gray-800 mt-4">
+          {/* Language Switcher */}
+          <div className="px-4 pb-2">
                <div className="flex bg-gray-800 p-1 rounded-lg">
                   <button 
                     onClick={() => setLanguage('cs')}
@@ -90,7 +108,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setView, player }
                     EN
                   </button>
                </div>
-            </div>
           </div>
 
           <div className="p-4 border-t border-gray-800">
@@ -110,7 +127,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setView, player }
             <Menu className="w-6 h-6" />
           </button>
           <span className="font-bold text-gray-800">Lean RPG</span>
-          <div className="w-6" /> {/* Spacer */}
+          {/* Mobile Notification Placement */}
+          <div className="bg-gray-900 rounded-lg shadow-sm">
+             <NotificationCenter onNavigate={handleNavigation} />
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8">

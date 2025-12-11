@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema, Chat } from "@google/genai";
-import { IshikawaCause, IshikawaSolution, LensScanResult } from "../types";
+import { IshikawaCause, IshikawaSolution, LensScanResult, LPAScanResult } from "../types";
 
 // Schema for structured output
 const solutionSchema: Schema = {
@@ -25,15 +25,54 @@ const solutionSchema: Schema = {
   required: ["solutions"]
 };
 
+// Updated Lens Schema for AR Checklist Validation
 const lensSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    itemDetected: { type: Type.STRING },
-    observation: { type: Type.STRING },
-    suggested5SAction: { type: Type.STRING, enum: ["Sort", "Set in Order", "Shine", "Standardize", "Sustain"] },
-    practicalAction: { type: Type.STRING }
+    overallCompliance: { type: Type.INTEGER, description: "0 to 100" },
+    checklistResults: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          item: { type: Type.STRING },
+          compliant: { type: Type.BOOLEAN },
+          observation: { type: Type.STRING }
+        },
+        required: ["item", "compliant", "observation"]
+      }
+    },
+    detectedHazards: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          action: { type: Type.STRING, enum: ["Sort", "Set in Order", "Shine", "Standardize", "Sustain"] },
+          severity: { type: Type.STRING, enum: ["Low", "Medium", "High"] }
+        },
+        required: ["name", "action", "severity"]
+      }
+    }
   },
-  required: ["itemDetected", "observation", "suggested5SAction", "practicalAction"]
+  required: ["overallCompliance", "checklistResults", "detectedHazards"]
+};
+
+const lpaSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    compliance: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+    observations: { 
+      type: Type.ARRAY,
+      items: { type: Type.STRING }
+    },
+    safetyRisk: { type: Type.BOOLEAN },
+    identifiedIssues: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING }
+    }
+  },
+  required: ["compliance", "observations", "safetyRisk", "identifiedIssues"]
 };
 
 // --- Ishikawa Generation ---
@@ -98,16 +137,104 @@ export const generateSolutions = async (
 };
 
 // --- Vision / Lens Analysis ---
-export const analyze5SImage = async (base64Image: string): Promise<LensScanResult> => {
+export const analyze5SImage = async (base64Image: string, context?: string, checklist: string[] = []): Promise<LensScanResult> => {
   const apiKey = process.env.API_KEY;
   
   // Mock fallback if no API key
   if (!apiKey) {
     return new Promise(resolve => setTimeout(() => resolve({
-      itemDetected: "Cluttered Workspace (Simulation)",
-      observation: "There are multiple objects that appear unnecessary for the immediate task.",
+      overallCompliance: 65,
+      checklistResults: checklist.length > 0 ? checklist.map((item, i) => ({
+          item,
+          compliant: i % 2 === 0, // Mock alternating compliance
+          observation: i % 2 === 0 ? "Looks good." : "Item appears disorganized or missing."
+      })) : [],
+      detectedHazards: [
+          { name: "Unknown Object in Walkway", action: "Sort", severity: "Medium" }
+      ],
+      // Backward compat
+      itemDetected: "Cluttered Area",
+      observation: "General disarray observed.",
       suggested5SAction: "Sort",
-      practicalAction: "Remove items not needed for current production."
+      practicalAction: "Remove unnecessary items."
+    }), 2000));
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  let promptText = `
+    Analyze this image for 5S compliance (Lean Manufacturing).
+    Context: ${context || "Factory Floor"}.
+  `;
+
+  if (checklist.length > 0) {
+      promptText += `\nValidate against these specific standards:\n${checklist.map(c => `- ${c}`).join('\n')}`;
+  } else {
+      promptText += `\nIdentify any specific items or areas that violate 5S principles (clutter, dirt, unorganized tools, safety hazard).`;
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: base64Image
+            }
+          },
+          {
+            text: promptText
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: lensSchema,
+      }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from vision model");
+    
+    const result = JSON.parse(text);
+
+    // Map new structure to old structure for backward compatibility if needed by components
+    const primaryHazard = result.detectedHazards?.[0] || { name: "General Issue", action: "Sort", severity: "Low" };
+    
+    return {
+        ...result,
+        itemDetected: primaryHazard.name,
+        suggested5SAction: primaryHazard.action,
+        observation: result.checklistResults?.find((r: any) => !r.compliant)?.observation || "Issue detected via AR scan.",
+        practicalAction: `Address: ${primaryHazard.name}`
+    } as LensScanResult;
+
+  } catch (error) {
+    console.error("Vision Error:", error);
+    // Graceful fallback
+    return {
+      overallCompliance: 0,
+      checklistResults: [],
+      detectedHazards: [{ name: "Scan Error", action: "Sustain", severity: "Low" }],
+      itemDetected: "Error",
+      observation: "Could not process image.",
+      suggested5SAction: "Sustain",
+      practicalAction: "Retry scan."
+    };
+  }
+};
+
+export const analyzeLPAImage = async (base64Image: string): Promise<LPAScanResult> => {
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey) {
+    return new Promise(resolve => setTimeout(() => resolve({
+      compliance: "Medium",
+      observations: ["PPE usage needs verification", "Walkways appear clear"],
+      safetyRisk: false,
+      identifiedIssues: ["Potential material crowding near station"]
     }), 2000));
   }
 
@@ -125,28 +252,28 @@ export const analyze5SImage = async (base64Image: string): Promise<LensScanResul
             }
           },
           {
-            text: "Analyze this image for 5S compliance (Lean Manufacturing). Identify ONE specific item or area that violates 5S principles (clutter, dirt, unorganized tools, safety hazard). Provide a structured assessment."
+            text: "Analyze this image for industrial safety and standard work compliance (Layered Process Audit). Look for PPE usage, trip hazards, proper material storage, and general cleanliness. Is the process being followed?"
           }
         ]
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: lensSchema,
+        responseSchema: lpaSchema,
       }
     });
 
     const text = response.text;
     if (!text) throw new Error("No response from vision model");
     
-    return JSON.parse(text) as LensScanResult;
+    return JSON.parse(text) as LPAScanResult;
+
   } catch (error) {
-    console.error("Vision Error:", error);
-    // Graceful fallback
+    console.error("LPA Vision Error:", error);
     return {
-      itemDetected: "Unknown Object",
-      observation: "Could not clearly identify 5S issues.",
-      suggested5SAction: "Sustain",
-      practicalAction: "Ensure the area is maintained."
+      compliance: "Low",
+      observations: ["Analysis failed due to technical error"],
+      safetyRisk: true,
+      identifiedIssues: ["Error: Could not process image"]
     };
   }
 };
@@ -154,11 +281,11 @@ export const analyze5SImage = async (base64Image: string): Promise<LensScanResul
 // --- Lean Sensei Chat ---
 let chatSession: Chat | null = null;
 
-export const sendMessageToSensei = async (message: string): Promise<string> => {
+export const sendMessageToSensei = async (message: string, context?: string): Promise<string> => {
   const apiKey = process.env.API_KEY;
   
   if (!apiKey) {
-    return "I am running in demo mode. Please configure the API Key to chat with me about Lean methodologies!";
+    return "I am running in demo mode. Please configure the API Key to chat with me about Lean methodologies! (Context: " + (context || "None") + ")";
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -167,16 +294,35 @@ export const sendMessageToSensei = async (message: string): Promise<string> => {
     chatSession = ai.chats.create({
       model: 'gemini-2.5-flash',
       config: {
-        systemInstruction: `You are 'Lean Sensei', a wise and encouraging mentor. Teach Lean (5S, Kaizen). Keep answers short.`
+        systemInstruction: `
+          You are 'Lean Sensei', a wise, professional, and encouraging mentor in a manufacturing environment.
+          Your goal is to teach Lean principles (5S, Kaizen, Six Sigma, Ishikawa) by guiding the user, not just giving answers.
+          
+          Tone:
+          - Professional but approachable.
+          - Use Socratic questioning when appropriate (e.g., "Why do you think that waste exists?").
+          - Be concise and actionable.
+          - Use formatting (bolding, lists) to make text easy to read.
+
+          Context Awareness:
+          - You will receive the user's current activity/location in the message payload. Use this!
+          - If the user is in an Audit, suggest what to look for based on the zone.
+          - If the user is solving a problem, guide them through the 5 Whys.
+        `
       }
     });
   }
 
   try {
-    const result = await chatSession.sendMessage({ message });
+    // Inject context into the message prompt if provided
+    const contentToSend = context 
+        ? `[SYSTEM CONTEXT: User is currently ${context}] \nUser Message: ${message}`
+        : message;
+
+    const result = await chatSession.sendMessage({ message: contentToSend });
     return result.text || "I'm thinking...";
   } catch (error) {
     console.error("Chat error:", error);
-    return "I seem to be having trouble connecting to the factory network.";
+    return "I seem to be having trouble connecting to the factory network. Please try again.";
   }
 };

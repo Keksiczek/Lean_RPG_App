@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewState } from '../types';
-import { ClipboardCheck, GitBranch, ArrowRight, ScanLine, Briefcase, Zap } from 'lucide-react';
+import { ClipboardCheck, GitBranch, ArrowRight, ScanLine, Briefcase, Zap, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface GameHubProps {
@@ -37,7 +37,7 @@ const GameHub: React.FC<GameHubProps> = ({ onSelectGame, level }) => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Real World 5S Scanner */}
           <button 
             onClick={() => onSelectGame(ViewState.GAME_AUDIT, true)}
@@ -50,7 +50,22 @@ const GameHub: React.FC<GameHubProps> = ({ onSelectGame, level }) => {
               <ArrowRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
             </div>
             <h3 className="font-bold text-lg mb-1">{t('hub.createRedTag')}</h3>
-            <p className="text-sm text-gray-400">{t('hub.createRedTagDesc')}</p>
+            <p className="text-xs text-gray-400">{t('hub.createRedTagDesc')}</p>
+          </button>
+
+          {/* Real World LPA */}
+          <button 
+            onClick={() => onSelectGame(ViewState.GAME_LPA, true)}
+            className="bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-xl text-left transition-all group flex flex-col h-full hover:border-purple-500/50"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="bg-purple-600 p-2 rounded-lg">
+                <ShieldCheck className="w-6 h-6 text-white" />
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
+            </div>
+            <h3 className="font-bold text-lg mb-1">{t('hub.runLPA')}</h3>
+            <p className="text-xs text-gray-400">{t('hub.runLPADesc')}</p>
           </button>
 
           {/* Real World Problem Solver */}
@@ -65,7 +80,7 @@ const GameHub: React.FC<GameHubProps> = ({ onSelectGame, level }) => {
               <ArrowRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
             </div>
             <h3 className="font-bold text-lg mb-1">{t('hub.solveProblem')}</h3>
-            <p className="text-sm text-gray-400">{t('hub.solveProblemDesc')}</p>
+            <p className="text-xs text-gray-400">{t('hub.solveProblemDesc')}</p>
           </button>
         </div>
       </div>
@@ -73,7 +88,7 @@ const GameHub: React.FC<GameHubProps> = ({ onSelectGame, level }) => {
       {/* SECTION 2: TRAINING SIMULATIONS */}
       <div>
         <h3 className="text-xl font-bold text-gray-900 mb-4 ml-1">{t('hub.simulation')}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* 5S Audit Game Card */}
           <div 
             onClick={() => onSelectGame(ViewState.GAME_AUDIT, false)}
@@ -92,6 +107,29 @@ const GameHub: React.FC<GameHubProps> = ({ onSelectGame, level }) => {
                 {t('hub.virtualAuditDesc')}
               </p>
               <div className="flex items-center text-red-600 font-medium text-sm group-hover:translate-x-1 transition-transform">
+                {t('hub.start')} <ArrowRight className="w-4 h-4 ml-2" />
+              </div>
+            </div>
+          </div>
+
+          {/* LPA Game Card */}
+          <div 
+            onClick={() => onSelectGame(ViewState.GAME_LPA, false)}
+            className="group relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-purple-400 transition-all duration-300"
+          >
+            <div className="h-28 bg-purple-700 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-900 opacity-90" />
+              <ShieldCheck className="absolute bottom-4 right-4 text-white/20 w-24 h-24 transform -rotate-6 group-hover:scale-110 transition-transform" />
+              <div className="absolute bottom-4 left-6 text-white">
+                <span className="bg-black/30 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold uppercase tracking-wide border border-white/20">Level 1</span>
+              </div>
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-2">{t('hub.virtualLPA')}</h3>
+              <p className="text-gray-500 text-sm mb-4">
+                {t('hub.virtualLPADesc')}
+              </p>
+              <div className="flex items-center text-purple-600 font-medium text-sm group-hover:translate-x-1 transition-transform">
                 {t('hub.start')} <ArrowRight className="w-4 h-4 ml-2" />
               </div>
             </div>

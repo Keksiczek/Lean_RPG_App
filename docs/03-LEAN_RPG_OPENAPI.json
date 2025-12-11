@@ -1,0 +1,412 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Lean_RPG API",
+    "description": "Gamified Lean Learning Platform - Backend API Specification",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Keksiczek",
+      "url": "https://github.com/Keksiczek/Lean_RPG"
+    },
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Development"
+    },
+    {
+      "url": "https://api.lean-rpg.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "username": { "type": "string", "minLength": 3 },
+                  "password": { "type": "string", "minLength": 8 }
+                },
+                "required": ["email", "username", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": { "type": "string" },
+                        "user": { "$ref": "#/components/schemas/Player" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Login user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/players/{userId}": {
+      "get": {
+        "tags": ["Players"],
+        "summary": "Get player profile",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Player profile"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Player not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Players"],
+        "summary": "Update player profile",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "preferences": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Player updated"
+          }
+        }
+      }
+    },
+    "/api/quests": {
+      "get": {
+        "tags": ["Quests"],
+        "summary": "Get all quests",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["5S", "Muda", "Kaizen"] }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["easy", "medium", "hard"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of quests"
+          }
+        }
+      }
+    },
+    "/api/quests/{questId}": {
+      "get": {
+        "tags": ["Quests"],
+        "summary": "Get single quest",
+        "parameters": [
+          {
+            "name": "questId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quest details"
+          },
+          "404": {
+            "description": "Quest not found"
+          }
+        }
+      }
+    },
+    "/api/quests/{questId}/accept": {
+      "post": {
+        "tags": ["Quests"],
+        "summary": "Accept quest",
+        "parameters": [
+          {
+            "name": "questId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": {
+            "description": "Quest accepted"
+          },
+          "409": {
+            "description": "Quest already in progress"
+          }
+        }
+      }
+    },
+    "/api/submissions": {
+      "post": {
+        "tags": ["Submissions"],
+        "summary": "Submit quest solution",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "questId": { "type": "string" },
+                  "content": { "type": "string" },
+                  "imageUrl": { "type": "string" }
+                },
+                "required": ["questId", "content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Submission created"
+          }
+        }
+      }
+    },
+    "/api/submissions/{submissionId}": {
+      "get": {
+        "tags": ["Submissions"],
+        "summary": "Get submission status (poll for AI analysis)",
+        "parameters": [
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Submission status"
+          }
+        }
+      }
+    },
+    "/api/gamification/leaderboard/global": {
+      "get": {
+        "tags": ["Gamification"],
+        "summary": "Get global leaderboard",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "perPage", "in": "query", "schema": { "type": "integer", "default": 10 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Global leaderboard"
+          }
+        }
+      }
+    },
+    "/api/red-tags": {
+      "post": {
+        "tags": ["Red Tags"],
+        "summary": "Create red tag (5S finding)",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "location": { "type": "string" },
+                  "itemDetected": { "type": "string" },
+                  "observation": { "type": "string" },
+                  "actionNeeded": { "type": "string" },
+                  "suggestedAction": { "type": "string" },
+                  "severity": { "type": "string" },
+                  "imageUrl": { "type": "string" }
+                },
+                "required": ["location", "itemDetected", "actionNeeded", "suggestedAction"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Red tag created"
+          }
+        }
+      },
+      "get": {
+        "tags": ["Red Tags"],
+        "summary": "Get all red tags",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "location", "in": "query", "schema": { "type": "string" } }
+        ],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of red tags"
+          }
+        }
+      }
+    },
+    "/api/ai/chat": {
+      "post": {
+        "tags": ["AI"],
+        "summary": "Chat with Lean Sensei",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": { "type": "string" }
+                },
+                "required": ["message"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chat response"
+          }
+        }
+      }
+    },
+    "/api/ai/analyze-5s-image": {
+      "post": {
+        "tags": ["AI"],
+        "summary": "Analyze image for 5S issues",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "base64Image": { "type": "string" }
+                },
+                "required": ["base64Image"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Image analysis result"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Player": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "level": { "type": "integer" },
+          "currentXp": { "type": "integer" },
+          "totalXp": { "type": "integer" },
+          "nextLevelXp": { "type": "integer" },
+          "gamesCompleted": { "type": "integer" },
+          "totalScore": { "type": "integer" }
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token obtained from /api/auth/login"
+      }
+    }
+  }
+}

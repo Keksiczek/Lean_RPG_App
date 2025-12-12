@@ -2,19 +2,26 @@ import React, { useState } from 'react';
 import { useAdmin } from '../../contexts/AdminContext';
 import { AdminRole } from '../../types';
 import ChecklistManager from '../../components/ChecklistManager';
-import { Shield, FileText, Users, AlertCircle, BarChart2 } from 'lucide-react';
+import AuditApprovalQueue from '../../components/AuditApprovalQueue';
+import { Shield, FileText, Users, AlertCircle, BarChart2, Briefcase } from 'lucide-react';
+import FactorySettingsPage from './FactorySettingsPage'; // Reuse existing component
 
-// Sub-components placeholder for specific admin tabs
-const WorkplacesAdmin = () => <div className="p-10 text-center text-gray-500">Workplace Management Module (Coming Soon)</div>;
-const UsersAdmin = () => <div className="p-10 text-center text-gray-500">User Role Management Module (Coming Soon)</div>;
-const AuditsAdmin = () => <div className="p-10 text-center text-gray-500">Audit History & Approval Queue (Coming Soon)</div>;
+// Placeholder for User Management (Module 4 Tab 4)
+const UsersAdmin = () => (
+    <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300">
+        <Users className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+        <h3 className="font-bold text-gray-700">User Management</h3>
+        <p className="text-gray-500 text-sm mb-4">Manage roles and permissions for your tenant.</p>
+        <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold">Import Users (CSV)</button>
+    </div>
+);
 
 const AdminDashboard: React.FC = () => {
   const { role, isAdmin } = useAdmin();
   const [activeTab, setActiveTab] = useState<'audits' | 'checklists' | 'workplaces' | 'users'>('audits');
 
   if (!isAdmin && role !== AdminRole.AUDIT_MANAGER) {
-    return <div className="p-10 text-center text-red-600 font-bold">Access Denied. Tenant Admin privileges required.</div>;
+    return <div className="p-10 text-center text-red-600 font-bold">Access Denied. Tenant Admin or Audit Manager privileges required.</div>;
   }
 
   return (
@@ -34,19 +41,19 @@ const AdminDashboard: React.FC = () => {
              onClick={() => setActiveTab('audits')}
              className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center transition-all ${activeTab === 'audits' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
            >
-             <BarChart2 className="w-4 h-4 mr-2" /> Audits
+             <BarChart2 className="w-4 h-4 mr-2" /> Audit Management
            </button>
            <button 
              onClick={() => setActiveTab('checklists')}
              className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center transition-all ${activeTab === 'checklists' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
            >
-             <FileText className="w-4 h-4 mr-2" /> Templates
+             <FileText className="w-4 h-4 mr-2" /> Checklists
            </button>
            <button 
              onClick={() => setActiveTab('workplaces')}
              className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold flex items-center justify-center transition-all ${activeTab === 'workplaces' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
            >
-             <AlertCircle className="w-4 h-4 mr-2" /> Workplaces
+             <Briefcase className="w-4 h-4 mr-2" /> Workplaces
            </button>
            <button 
              onClick={() => setActiveTab('users')}
@@ -58,9 +65,9 @@ const AdminDashboard: React.FC = () => {
 
         {/* Content Area */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[500px]">
+           {activeTab === 'audits' && <AuditApprovalQueue />}
            {activeTab === 'checklists' && <ChecklistManager />}
-           {activeTab === 'audits' && <AuditsAdmin />}
-           {activeTab === 'workplaces' && <WorkplacesAdmin />}
+           {activeTab === 'workplaces' && <FactorySettingsPage />}
            {activeTab === 'users' && <UsersAdmin />}
         </div>
       </div>

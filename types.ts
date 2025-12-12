@@ -167,6 +167,8 @@ export interface Workplace {
   redTags: number;
   activeTrainingModules: number;
   checklist: string[]; 
+  complianceScore?: number; // New for dashboard
+  lastAuditDate?: string;
 }
 
 // --- AUDIT SYSTEM TYPES (NEW) ---
@@ -179,6 +181,7 @@ export interface ChecklistItem {
   guidance: string;
   photo_required: boolean;
   category: string;
+  order?: number;
 }
 
 export interface ChecklistTemplate {
@@ -189,10 +192,12 @@ export interface ChecklistTemplate {
   items: ChecklistItem[];
   version: number;
   isPublic: boolean;
+  isPublished: boolean; // New
   createdBy: string;
   tenantId: string;
   createdAt: string;
   updatedAt: string;
+  usageCount?: number;
 }
 
 export interface AuditResponse {
@@ -216,7 +221,7 @@ export interface AuditSession {
   checklistId: string;
   workplaceId: string;
   auditorId: string;
-  status: "in_progress" | "paused" | "completed" | "cancelled" | "approved" | "rejected";
+  status: "in_progress" | "submitted" | "approved" | "rejected" | "cancelled";
   responses: AuditResponse[];
   photoEvidence: string[];
   findings: AuditFinding[];
@@ -227,6 +232,7 @@ export interface AuditSession {
   startTime: string;
   endTime?: string;
   createdAt: string;
+  completedAt?: string;
   checklistName?: string; // Helper for display
   workplaceName?: string; // Helper for display
   auditorName?: string;   // Helper for display

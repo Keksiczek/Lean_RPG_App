@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ViewState, Player, Achievement } from './types';
+import { ViewState, Player, Achievement, AdminRole } from './types';
 import { checkForNewAchievements } from './utils/gameUtils';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -16,6 +16,7 @@ import LeanChatbot from './components/LeanChatbot';
 import LoginForm from './components/LoginForm';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AuditSessionComponent from './components/AuditSession';
+import ProtectedRoute from './components/ProtectedRoute'; // Imported
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AdminProvider } from './contexts/AdminContext';
@@ -26,6 +27,7 @@ import ProfilePage from './pages/ProfilePage';
 import AccountSettingsPage from './pages/AccountSettingsPage';
 import FactorySettingsPage from './pages/admin/FactorySettingsPage';
 import NotificationsPage from './pages/NotificationsPage';
+import ComplianceDashboard from './pages/ComplianceDashboard'; // Imported
 
 const AppContent: React.FC = () => {
   const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
@@ -101,8 +103,21 @@ const AppContent: React.FC = () => {
         return <Leaderboard currentUser={user} />;
       case ViewState.SKILLS:
         return <SkillsPage player={user} />;
+      
+      // Admin Routes Protected
       case ViewState.ADMIN_DASHBOARD:
-        return <AdminDashboard />;
+        return (
+          <ProtectedRoute requiredRole={AdminRole.AUDIT_MANAGER}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        );
+      case ViewState.SETTINGS_FACTORY:
+        return (
+          <ProtectedRoute requiredRole={AdminRole.TENANT_ADMIN}>
+            <FactorySettingsPage />
+          </ProtectedRoute>
+        );
+        
       case ViewState.AUDIT_SESSION:
         return <AuditSessionComponent 
                   onExit={() => setActiveView(ViewState.ADMIN_DASHBOARD)} 
@@ -114,10 +129,10 @@ const AppContent: React.FC = () => {
         return <ProfilePage />;
       case ViewState.SETTINGS_ACCOUNT:
         return <AccountSettingsPage />;
-      case ViewState.SETTINGS_FACTORY:
-        return <FactorySettingsPage />;
       case ViewState.NOTIFICATIONS:
         return <NotificationsPage />;
+      case ViewState.COMPLIANCE_DASHBOARD:
+        return <ComplianceDashboard />;
 
       // Legacy / Training Views
       case ViewState.GAME_AUDIT:

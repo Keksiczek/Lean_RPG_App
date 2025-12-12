@@ -67,19 +67,27 @@ const TaskManager: React.FC<TaskManagerProps> = ({ initialTaskId }) => {
       if (initialTaskId && tasks.length > 0) {
           const task = tasks.find(t => t.id === initialTaskId);
           if (task) {
+              // Reset filters to ensure the task is visible
+              setFilterStatus('all');
+              setFilterPriority('all');
+              setFilterSource('all');
+              setFilterAssignee('all');
+              setSearchQuery('');
+
               // 1. Open the modal for editing
               handleEdit(task);
               
-              // 2. Scroll the list to the task (in case modal is closed or for context)
-              const el = itemRefs.current.get(task.id);
-              if (el) {
-                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  // Optional: Add a temporary highlight class or effect here if desired
-                  el.classList.add('ring-2', 'ring-red-500', 'ring-offset-2');
-                  setTimeout(() => {
-                      el.classList.remove('ring-2', 'ring-red-500', 'ring-offset-2');
-                  }, 2000);
-              }
+              // 2. Scroll the list to the task with a slight delay to allow rendering
+              setTimeout(() => {
+                  const el = itemRefs.current.get(task.id);
+                  if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      el.classList.add('ring-2', 'ring-red-500', 'ring-offset-2');
+                      setTimeout(() => {
+                          el.classList.remove('ring-2', 'ring-red-500', 'ring-offset-2');
+                      }, 2000);
+                  }
+              }, 100);
           }
       }
   }, [initialTaskId, tasks]);

@@ -34,14 +34,24 @@ export const ENDPOINTS = {
   },
   USERS: {
     ME: '/api/users/me',
+    BASE: '/api/users',
   },
   SUBMISSIONS: {
     BASE: '/api/submissions',
   },
   GAME: {
     AUDIT_SETTINGS: '/api/5s/settings',
-    LPA_TEMPLATES: '/api/audits',
+    LPA_TEMPLATES: '/api/audits', // Legacy
     PROBLEMS: '/api/problem-solving/challenges',
+  },
+  AUDITS: {
+    CHECKLIST_TEMPLATES: '/api/audits/checklist-templates',
+    BASE: '/api/audits',
+    APPROVE: '/approve', // Suffix
+  },
+  WORKPLACES: {
+    BASE: '/api/workplaces',
+    COMPLIANCE: '/compliance', // Suffix
   },
   GAMIFICATION: {
     LEADERBOARD: '/api/gamification/leaderboard',

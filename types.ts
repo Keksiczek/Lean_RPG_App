@@ -1,3 +1,4 @@
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GAME_HUB = 'GAME_HUB',
@@ -8,6 +9,14 @@ export enum ViewState {
   SKILLS = 'SKILLS',
   TASKS = 'TASKS',
   LEADERBOARD = 'LEADERBOARD',
+  ADMIN_DASHBOARD = 'ADMIN_DASHBOARD',
+  COMPLIANCE_DASHBOARD = 'COMPLIANCE_DASHBOARD',
+  AUDIT_SESSION = 'AUDIT_SESSION',
+  // New Profile & Settings Views
+  PROFILE = 'PROFILE',
+  SETTINGS_ACCOUNT = 'SETTINGS_ACCOUNT',
+  SETTINGS_FACTORY = 'SETTINGS_FACTORY',
+  NOTIFICATIONS = 'NOTIFICATIONS',
 }
 
 export type Language = 'cs' | 'en';
@@ -16,6 +25,14 @@ export enum Difficulty {
   EASY = 'easy',
   MEDIUM = 'medium',
   HARD = 'hard',
+}
+
+export enum AdminRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  TENANT_ADMIN = 'TENANT_ADMIN',
+  AUDIT_MANAGER = 'AUDIT_MANAGER',
+  TRAINER = 'TRAINER',
+  OPERATOR = 'OPERATOR',
 }
 
 // --- API Response Wrapper ---
@@ -55,22 +72,22 @@ export interface Skill {
 
 // Aligned with Backend Prisma User
 export interface Player {
-  id: number; // Changed from string to number
+  id: number;
   email: string;
-  username: string; // mapped from 'name' if needed, or keeping username
-  role: string;
+  username: string;
+  role: string; // Mapped to AdminRole in AdminContext
   tenantId: string;
   level: number;
-  totalXp: number; // Backend source of truth
-  currentXp?: number; // Calculated on frontend
-  nextLevelXp?: number; // Calculated on frontend
-  gamesCompleted: number; // derived or stored in stats
+  totalXp: number;
+  currentXp?: number;
+  nextLevelXp?: number;
+  gamesCompleted: number;
   totalScore: number;
   createdAt: string;
   
   // Relations
   achievements: Achievement[];
-  recentActivity: ActivityLog[]; // Mapped from Submissions/UserQuests
+  recentActivity: ActivityLog[];
 }
 
 export interface LeaderboardEntry {
@@ -96,7 +113,7 @@ export interface ActivityLog {
 export interface SubmissionPayload {
   questId: string;
   userId: number;
-  content: string; // JSON stringified result
+  content: string;
   userQuestId?: string;
   workstationId?: string;
   aiFeedback?: string;
@@ -152,7 +169,70 @@ export interface Workplace {
   checklist: string[]; 
 }
 
-// 5S Audit Types
+// --- AUDIT SYSTEM TYPES (NEW) ---
+
+export interface ChecklistItem {
+  id: string;
+  question: string;
+  expected_answer: "Yes" | "No" | "N/A" | "Text";
+  scoring_weight: number;
+  guidance: string;
+  photo_required: boolean;
+  category: string;
+}
+
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: "5S" | "LPA" | "Safety" | "Custom";
+  items: ChecklistItem[];
+  version: number;
+  isPublic: boolean;
+  createdBy: string;
+  tenantId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditResponse {
+  itemId: string;
+  answer: string | boolean;
+  timestamp: string;
+  photoIds: string[];
+  notes: string;
+}
+
+export interface AuditFinding {
+  itemId: string;
+  severity: "Info" | "Minor" | "Major" | "Critical";
+  description: string;
+  photo?: string;
+  approved: boolean;
+}
+
+export interface AuditSession {
+  id: string;
+  checklistId: string;
+  workplaceId: string;
+  auditorId: string;
+  status: "in_progress" | "paused" | "completed" | "cancelled" | "approved" | "rejected";
+  responses: AuditResponse[];
+  photoEvidence: string[];
+  findings: AuditFinding[];
+  overallCompliance: number;
+  riskLevel: "Green" | "Yellow" | "Red";
+  score: number;
+  xpEarned: number;
+  startTime: string;
+  endTime?: string;
+  createdAt: string;
+  checklistName?: string; // Helper for display
+  workplaceName?: string; // Helper for display
+  auditorName?: string;   // Helper for display
+}
+
+// 5S Audit Types (Legacy/Virtual)
 export interface AuditItem {
   id: string;
   name: string;

@@ -14,9 +14,18 @@ import Leaderboard from './components/Leaderboard';
 import AchievementToast from './components/AchievementToast';
 import LeanChatbot from './components/LeanChatbot';
 import LoginForm from './components/LoginForm';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AuditSessionComponent from './components/AuditSession';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AdminProvider } from './contexts/AdminContext';
 import { Loader2 } from 'lucide-react';
+
+// New Pages Imports
+import ProfilePage from './pages/ProfilePage';
+import AccountSettingsPage from './pages/AccountSettingsPage';
+import FactorySettingsPage from './pages/admin/FactorySettingsPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 const AppContent: React.FC = () => {
   const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
@@ -56,20 +65,16 @@ const AppContent: React.FC = () => {
     } else {
         setNavigationData(null);
     }
+    
+    // Pass generic data forward if needed
+    if (data) setNavigationData(data);
 
     setActiveView(view);
   };
 
   const handleGameComplete = async (xpEarned: number, score: number, gameName: string) => {
-    // Note: The specific game components now handle the saving (POST /api/submissions)
-    // internally before calling this function.
-    // This function is now responsible for updating the UI state.
-    
     try {
-      // Fetch updated player stats from backend to get latest level/xp
       await refreshUser();
-
-      // Check for achievements (Client-side visual for immediate feedback, though backend likely handles this too)
       const earnedAchievements = checkForNewAchievements(user, score, gameName);
       if (earnedAchievements.length > 0) {
         setNewAchievement(earnedAchievements[0]);
@@ -96,6 +101,25 @@ const AppContent: React.FC = () => {
         return <Leaderboard currentUser={user} />;
       case ViewState.SKILLS:
         return <SkillsPage player={user} />;
+      case ViewState.ADMIN_DASHBOARD:
+        return <AdminDashboard />;
+      case ViewState.AUDIT_SESSION:
+        return <AuditSessionComponent 
+                  onExit={() => setActiveView(ViewState.ADMIN_DASHBOARD)} 
+                  onComplete={() => handleGameComplete(100, 100, "Official Audit")}
+                  templateId={navigationData?.templateId}
+               />;
+      // New Profile / Settings Routes
+      case ViewState.PROFILE:
+        return <ProfilePage />;
+      case ViewState.SETTINGS_ACCOUNT:
+        return <AccountSettingsPage />;
+      case ViewState.SETTINGS_FACTORY:
+        return <FactorySettingsPage />;
+      case ViewState.NOTIFICATIONS:
+        return <NotificationsPage />;
+
+      // Legacy / Training Views
       case ViewState.GAME_AUDIT:
         return <AuditGame 
                   onComplete={handleGameComplete} 
@@ -143,7 +167,9 @@ const App: React.FC = () => {
   return (
     <LanguageProvider>
       <AuthProvider>
-        <AppContent />
+        <AdminProvider>
+          <AppContent />
+        </AdminProvider>
       </AuthProvider>
     </LanguageProvider>
   );

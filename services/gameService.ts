@@ -1,251 +1,191 @@
 import { apiClient } from './apiClient';
 import { ENDPOINTS } from '../config';
-import { Player, AuditScene, IshikawaProblem, ActionTask, LeaderboardEntry, Notification, ActivityLog } from '../types';
-import { calculateLevel } from '../utils/gameUtils';
+import { Player, ActionTask, LeaderboardEntry, Notification, SubmissionResponse, ActivityLog } from '../types';
 import { LEVEL_THRESHOLDS } from '../constants';
 
-// Mock Tasks Store (Temporary until backend is fully live)
-let MOCK_TASKS: ActionTask[] = [
-    {
-        id: 't1',
-        title: 'Repair Conveyor Belt Guard',
-        description: 'Safety guard loose on Line 3. Found during LPA.',
-        status: 'open',
-        priority: 'high',
-        source: 'LPA Finding',
-        assignee: 'Maintenance Lead',
-        dueDate: new Date(Date.now() + 86400000).toISOString(),
-        createdAt: new Date().toISOString(),
-        location: 'Assembly Line 3'
-    },
-    {
-        id: 't2',
-        title: 'Sort Tool Cabinet B',
-        description: 'Mixed tools found. Needs shadow board update.',
-        status: 'in_progress',
-        priority: 'medium',
-        source: '5S Red Tag',
-        assignee: 'Team Leader A',
-        dueDate: new Date(Date.now() + 172800000).toISOString(),
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        location: 'Zone B'
+// --- MOCK DATA FOR OFFLINE MODE (Fallback) ---
+const MOCK_PLAYER: Player = {
+  id: 1, 
+  email: 'operator@magna.com',
+  username: 'CI Operator (Offline)',
+  role: 'operator',
+  tenantId: 'magna',
+  level: 3,
+  totalXp: 3250,
+  currentXp: 3250,
+  nextLevelXp: 4500,
+  gamesCompleted: 12,
+  totalScore: 8450,
+  createdAt: new Date().toISOString(),
+  achievements: [
+    { id: 'first_steps', title: 'First Steps', description: 'Complete your first training module.', icon: 'Footprints', unlockedAt: '2023-01-01' }
+  ],
+  recentActivity: []
+};
+
+// --- Mappers ---
+
+const mapUserToPlayer = (user: any): Player => {
+  const { level, nextLevelXp } = calculateLevel(user.totalXp || 0);
+  return {
+    ...user,
+    id: user.id || 0,
+    level,
+    currentXp: user.totalXp || 0,
+    nextLevelXp,
+    gamesCompleted: user.submissions?.length || user.gamesCompleted || 0,
+    totalScore: user.totalScore || 0,
+    achievements: user.achievements || [],
+    recentActivity: (user.submissions || []).map((sub: any) => ({
+      id: sub.id.toString(),
+      game: sub.questId,
+      score: sub.score,
+      xp: sub.xpGain,
+      date: sub.createdAt
+    }))
+  };
+};
+
+const calculateLevel = (totalXp: number) => {
+  let level = 1;
+  let nextLevelXp = LEVEL_THRESHOLDS[1];
+  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
+    if (totalXp >= LEVEL_THRESHOLDS[i]) {
+      level = i + 1;
+      nextLevelXp = LEVEL_THRESHOLDS[i + 1] || LEVEL_THRESHOLDS[i] * 1.5;
+    } else {
+      break;
     }
-];
-
-// Mock Notifications Store
-let MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: 'n1',
-    title: 'Audit Complete',
-    message: 'Your 5S Audit for "Factory Floor" has been submitted.',
-    type: 'success',
-    read: false,
-    timestamp: new Date(Date.now() - 3600000).toISOString()
-  },
-  {
-    id: 'n2',
-    title: 'New Task Assigned',
-    message: 'Repair Conveyor Belt Guard has been assigned to your department.',
-    type: 'task',
-    read: false,
-    relatedTaskId: 't1',
-    timestamp: new Date().toISOString()
   }
-];
-
-// Mock Player State (Simulating Backend Persistence)
-let MOCK_PLAYER: Player = {
-  id: 'u1',
-  username: 'CI Specialist',
-  level: 1,
-  currentXp: 0,
-  totalXp: 0,
-  nextLevelXp: 1000,
-  gamesCompleted: 0,
-  totalScore: 0,
-  recentActivity: [],
-  achievements: []
+  return { level, nextLevelXp };
 };
 
-// Helper to update mock player state
-const updateMockPlayer = (xpEarned: number, score: number, gameName: string) => {
-    MOCK_PLAYER.totalXp += xpEarned;
-    MOCK_PLAYER.totalScore += score;
-    MOCK_PLAYER.gamesCompleted += 1;
-
-    // Recalculate Level
-    const { level, nextLevelXp } = calculateLevel(MOCK_PLAYER.totalXp);
-    MOCK_PLAYER.level = level;
-    MOCK_PLAYER.nextLevelXp = nextLevelXp;
-
-    // Recalculate Current XP (Progress in current level)
-    const currentLevelBaseXp = LEVEL_THRESHOLDS[level - 1] || 0;
-    MOCK_PLAYER.currentXp = MOCK_PLAYER.totalXp - currentLevelBaseXp;
-
-    // Add Activity
-    const newActivity: ActivityLog = {
-        id: Date.now().toString(),
-        game: gameName,
-        score: score,
-        xp: xpEarned,
-        date: new Date().toISOString()
-    };
-    MOCK_PLAYER.recentActivity = [newActivity, ...MOCK_PLAYER.recentActivity];
-};
+// --- Service ---
 
 export const gameService = {
+  // --- User & Profile ---
   fetchPlayerProfile: async (): Promise<Player> => {
     try {
-        return await apiClient.get<Player>(ENDPOINTS.PLAYER.PROFILE);
+      const userData = await apiClient.get<any>(ENDPOINTS.USERS.ME);
+      return mapUserToPlayer(userData);
     } catch (e) {
-        console.warn("Backend unavailable, returning local mock profile");
-        // Simulate network delay
-        return new Promise(resolve => setTimeout(() => resolve({...MOCK_PLAYER}), 200));
+      console.warn("Backend unavailable, using mock profile");
+      return MOCK_PLAYER; 
     }
   },
 
-  saveAuditResult: async (sceneId: string, score: number, xpEarned: number, checklist: any) => {
-    updateMockPlayer(xpEarned, score, '5S Audit');
+  getMockPlayer: (): Player => {
+    return MOCK_PLAYER;
+  },
+
+  getLeaderboard: async (): Promise<LeaderboardEntry[]> => {
     try {
-        return await apiClient.post(ENDPOINTS.GAME.AUDIT, {
-            sceneId,
-            score,
-            xpEarned,
-            checklist,
-            completedAt: new Date().toISOString()
-        });
+      return await apiClient.get<LeaderboardEntry[]>(ENDPOINTS.GAMIFICATION.LEADERBOARD);
     } catch (e) {
-        console.warn("Backend save failed, saved locally");
-        return { success: true, local: true };
+      console.warn("Leaderboard fetch failed, using mock data");
+      return [
+        { id: 101, username: 'KaizenKing', level: 5, totalXp: 9500, totalScore: 25000, rank: 1 },
+        { id: 102, username: '5S_Ninja', level: 4, totalXp: 6200, totalScore: 18000, rank: 2 },
+      ];
     }
   },
 
-  saveLPAResult: async (auditId: string, score: number, xpEarned: number, answers: any) => {
-    updateMockPlayer(xpEarned, score, 'LPA Audit');
+  // --- Submissions (Real Game Logic) ---
+
+  saveAuditResult: async (sceneId: string, score: number, xpEarned: number, auditData: any, userId: number): Promise<SubmissionResponse> => {
+    const payload = {
+      questId: 'audit-sim',
+      userId,
+      content: JSON.stringify({ sceneId, auditData }), // Stores detailed results
+      aiScore5s: score.toString(), // Stores the main score for leaderboards
+      status: 'evaluated'
+    };
     try {
-        return await apiClient.post(ENDPOINTS.GAME.AUDIT + '/lpa', {
-            auditId,
-            score,
-            xpEarned,
-            answers,
-            completedAt: new Date().toISOString()
-        });
-    } catch (e) { return { success: true, local: true }; }
+      return await apiClient.post<SubmissionResponse>(ENDPOINTS.SUBMISSIONS.BASE, payload);
+    } catch (e) {
+      console.warn("Offline submission", e);
+      return { id: 0, xpGain: xpEarned, score, status: 'offline_saved' };
+    }
   },
 
-  saveIshikawaResult: async (problemId: string, score: number, xpEarned: number, causes: any[], solutions: any[]) => {
-    updateMockPlayer(xpEarned, score, 'Ishikawa Analysis');
+  saveLPAResult: async (auditId: string, score: number, xpEarned: number, answers: any, userId: number): Promise<SubmissionResponse> => {
+    const payload = {
+      questId: 'lpa-sim',
+      userId,
+      content: JSON.stringify({ auditId, answers }),
+      status: 'evaluated'
+    };
     try {
-        return await apiClient.post(ENDPOINTS.GAME.ISHIKAWA, {
-            problemId,
-            score,
-            xpEarned,
-            causes,
-            solutions,
-            completedAt: new Date().toISOString()
-        });
-    } catch (e) { return { success: true, local: true }; }
+      return await apiClient.post<SubmissionResponse>(ENDPOINTS.SUBMISSIONS.BASE, payload);
+    } catch (e) {
+      console.warn("Offline submission", e);
+      return { id: 0, xpGain: xpEarned, score, status: 'offline_saved' };
+    }
   },
 
-  // --- Task Management Methods ---
+  saveIshikawaResult: async (problemId: string, score: number, xpEarned: number, causes: any[], solutions: any[], userId: number): Promise<SubmissionResponse> => {
+    const payload = {
+      questId: 'ishikawa-sim',
+      userId,
+      content: JSON.stringify({ problemId, causes, solutions }),
+      status: 'evaluated'
+    };
+    try {
+      return await apiClient.post<SubmissionResponse>(ENDPOINTS.SUBMISSIONS.BASE, payload);
+    } catch (e) {
+      console.warn("Offline submission", e);
+      return { id: 0, xpGain: xpEarned, score, status: 'offline_saved' };
+    }
+  },
+
+  // --- Task Management (Placeholder until /api/tasks is ready) ---
   
   getTasks: async (): Promise<ActionTask[]> => {
+    // Ideally: return await apiClient.get<ActionTask[]>('/api/tasks');
     return new Promise((resolve) => {
-        setTimeout(() => resolve([...MOCK_TASKS]), 300);
+        setTimeout(() => resolve([]), 300);
     });
   },
 
   createTask: async (task: Omit<ActionTask, 'id' | 'createdAt'>): Promise<ActionTask> => {
-    return new Promise((resolve) => {
-        const newTask: ActionTask = {
-            ...task,
-            id: `t${Date.now()}`,
-            createdAt: new Date().toISOString()
-        };
-        MOCK_TASKS = [newTask, ...MOCK_TASKS];
-
-        // Trigger Notification
-        const newNotification: Notification = {
-          id: `n${Date.now()}`,
-          title: 'New Corrective Action',
-          message: `Task created: ${newTask.title}`,
-          type: 'warning',
-          read: false,
-          timestamp: new Date().toISOString(),
-          relatedTaskId: newTask.id
-        };
-        MOCK_NOTIFICATIONS = [newNotification, ...MOCK_NOTIFICATIONS];
-
-        resolve(newTask);
-    });
+    // Ideally: return await apiClient.post<ActionTask>('/api/tasks', task);
+    const newTask: ActionTask = {
+        ...task,
+        id: `t${Date.now()}`,
+        createdAt: new Date().toISOString()
+    };
+    return newTask;
   },
 
   updateTask: async (taskId: string, updates: Partial<ActionTask>): Promise<ActionTask> => {
-    return new Promise((resolve, reject) => {
-        const index = MOCK_TASKS.findIndex(t => t.id === taskId);
-        if (index === -1) {
-            reject('Task not found');
-            return;
-        }
-        MOCK_TASKS[index] = { ...MOCK_TASKS[index], ...updates };
-        resolve(MOCK_TASKS[index]);
-    });
+    // Ideally: return await apiClient.put<ActionTask>(`/api/tasks/${taskId}`, updates);
+    return { id: taskId, ...updates } as ActionTask;
   },
 
-  // --- Notification Methods ---
+  // --- Notifications ---
 
   getNotifications: async (): Promise<Notification[]> => {
-    return new Promise((resolve) => {
-      setTimeout(() => resolve([...MOCK_NOTIFICATIONS]), 200);
-    });
+    try {
+      return await apiClient.get<Notification[]>(ENDPOINTS.NOTIFICATIONS.BASE);
+    } catch (e) {
+      console.warn("Failed to fetch notifications", e);
+      return [];
+    }
   },
 
   markNotificationRead: async (id: string): Promise<void> => {
-    return new Promise((resolve) => {
-      MOCK_NOTIFICATIONS = MOCK_NOTIFICATIONS.map(n => 
-        n.id === id ? { ...n, read: true } : n
-      );
-      resolve();
-    });
+    try {
+      await apiClient.put(ENDPOINTS.NOTIFICATIONS.MARK_READ.replace(':id', id), {});
+    } catch (e) {
+      console.error("Failed to mark notification read", e);
+    }
   },
 
   markAllNotificationsRead: async (): Promise<void> => {
-    return new Promise((resolve) => {
-      MOCK_NOTIFICATIONS = MOCK_NOTIFICATIONS.map(n => ({ ...n, read: true }));
-      resolve();
-    });
-  },
-
-  getLeaderboard: async (): Promise<LeaderboardEntry[]> => {
-    return new Promise((resolve) => {
-        // Mock data
-        const mockData: LeaderboardEntry[] = [
-            { id: 'p1', username: 'Jan Novák', level: 5, totalXp: 8500, totalScore: 6200, rank: 1 },
-            { id: 'p2', username: 'Marie Dvořáková', level: 4, totalXp: 5400, totalScore: 4100, rank: 2 },
-            { id: 'p3', username: 'Petr Svoboda', level: 3, totalXp: 3200, totalScore: 2800, rank: 3 },
-            { id: 'p4', username: 'Anna Černá', level: 2, totalXp: 1500, totalScore: 1200, rank: 4 },
-            { id: 'p5', username: 'Tomáš Kučera', level: 1, totalXp: 800, totalScore: 600, rank: 5 },
-            // MOCK_PLAYER stats included here for dynamic leaderboard ranking
-            { 
-              id: MOCK_PLAYER.id, 
-              username: `${MOCK_PLAYER.username} (You)`, 
-              level: MOCK_PLAYER.level, 
-              totalXp: MOCK_PLAYER.totalXp, 
-              totalScore: MOCK_PLAYER.totalScore, 
-              rank: 0 
-            }, 
-        ];
-        
-        // Sort by Score
-        mockData.sort((a, b) => b.totalScore - a.totalScore);
-        
-        // Assign Ranks
-        const rankedData = mockData.map((entry, index) => ({
-            ...entry,
-            rank: index + 1
-        }));
-
-        setTimeout(() => resolve(rankedData), 500);
-    });
-  },
+    try {
+      await apiClient.put(ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ, {});
+    } catch (e) {
+      console.error("Failed to mark all notifications read", e);
+    }
+  }
 };

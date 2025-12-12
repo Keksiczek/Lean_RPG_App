@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ActionTask } from '../types';
 import { gameService } from '../services/gameService';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -48,6 +48,9 @@ const TaskManager: React.FC<TaskManagerProps> = ({ initialTaskId }) => {
   const [formPriority, setFormPriority] = useState<'low'|'medium'|'high'>('medium');
   const [formStatus, setFormStatus] = useState<'open'|'in_progress'|'done'>('open');
 
+  // References for scrolling
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   useEffect(() => {
     loadTasks();
   }, []);
@@ -64,7 +67,19 @@ const TaskManager: React.FC<TaskManagerProps> = ({ initialTaskId }) => {
       if (initialTaskId && tasks.length > 0) {
           const task = tasks.find(t => t.id === initialTaskId);
           if (task) {
+              // 1. Open the modal for editing
               handleEdit(task);
+              
+              // 2. Scroll the list to the task (in case modal is closed or for context)
+              const el = itemRefs.current.get(task.id);
+              if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  // Optional: Add a temporary highlight class or effect here if desired
+                  el.classList.add('ring-2', 'ring-red-500', 'ring-offset-2');
+                  setTimeout(() => {
+                      el.classList.remove('ring-2', 'ring-red-500', 'ring-offset-2');
+                  }, 2000);
+              }
           }
       }
   }, [initialTaskId, tasks]);
@@ -278,6 +293,7 @@ const TaskManager: React.FC<TaskManagerProps> = ({ initialTaskId }) => {
                 filteredTasks.map(task => (
                     <div 
                         key={task.id}
+                        ref={(el) => { if (el) itemRefs.current.set(task.id, el); else itemRefs.current.delete(task.id); }}
                         onClick={() => handleEdit(task)}
                         className={`bg-white rounded-xl p-4 md:p-6 shadow-sm border hover:shadow-md hover:border-red-300 cursor-pointer transition-all group relative overflow-hidden ${
                             editingTask?.id === task.id ? 'ring-2 ring-red-500 border-red-500' : 'border-slate-200'

@@ -1,6 +1,17 @@
 import { GoogleGenAI, Type, Schema, Chat } from "@google/genai";
 import { IshikawaCause, IshikawaSolution, LensScanResult, LPAScanResult } from "../types";
 
+// Helper for safe Env access
+const getApiKey = () => {
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.API_KEY) {
+    return (import.meta as any).env.API_KEY;
+  }
+  return '';
+};
+
 // Schema for structured output
 const solutionSchema: Schema = {
   type: Type.OBJECT,
@@ -81,9 +92,9 @@ export const generateSolutions = async (
   problemDescription: string,
   causes: IshikawaCause[]
 ): Promise<IshikawaSolution[]> => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    console.error("API Key not found");
+    console.warn("API Key not found, using mock response");
     return [
       {
         title: "Standardize Operator Training",
@@ -138,7 +149,7 @@ export const generateSolutions = async (
 
 // --- Vision / Lens Analysis ---
 export const analyze5SImage = async (base64Image: string, context?: string, checklist: string[] = []): Promise<LensScanResult> => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   
   // Mock fallback if no API key
   if (!apiKey) {
@@ -163,8 +174,9 @@ export const analyze5SImage = async (base64Image: string, context?: string, chec
   const ai = new GoogleGenAI({ apiKey });
 
   let promptText = `
-    Analyze this image for 5S compliance (Lean Manufacturing).
-    Context: ${context || "Factory Floor"}.
+    Role: Lean Manufacturing 5S Auditor.
+    Task: Analyze this image for 5S compliance and safety hazards.
+    Location Context: "${context || "General Workplace"}".
   `;
 
   if (checklist.length > 0) {
@@ -227,7 +239,7 @@ export const analyze5SImage = async (base64Image: string, context?: string, chec
 };
 
 export const analyzeLPAImage = async (base64Image: string): Promise<LPAScanResult> => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   
   if (!apiKey) {
     return new Promise(resolve => setTimeout(() => resolve({
@@ -282,7 +294,7 @@ export const analyzeLPAImage = async (base64Image: string): Promise<LPAScanResul
 let chatSession: Chat | null = null;
 
 export const sendMessageToSensei = async (message: string, context?: string): Promise<string> => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   
   if (!apiKey) {
     return "I am running in demo mode. Please configure the API Key to chat with me about Lean methodologies! (Context: " + (context || "None") + ")";

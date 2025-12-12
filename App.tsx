@@ -16,7 +16,6 @@ import LeanChatbot from './components/LeanChatbot';
 import LoginForm from './components/LoginForm';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { gameService } from './services/gameService';
 import { Loader2 } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -29,10 +28,8 @@ const AppContent: React.FC = () => {
   const [activeChecklist, setActiveChecklist] = useState<string[]>([]);
   const [gameContext, setGameContext] = useState<string>('');
   
-  // Deep Linking State (e.g. opening a specific task from notification)
   const [navigationData, setNavigationData] = useState<any>(null);
 
-  // If loading auth state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -41,23 +38,19 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // If not authenticated, show Login
   if (!isAuthenticated || !user) {
     return <LoginForm />;
   }
 
   const handleNavigation = (view: ViewState, data?: any) => {
-    // Reset specific states when switching views
     if (view !== ViewState.GAME_AUDIT && view !== ViewState.GAME_LPA) {
         setIsRealWorldMode(false);
     }
     
-    // Handle Game/Context Data
     if (data?.isRealWorld) setIsRealWorldMode(true);
     if (data?.checklist) setActiveChecklist(data.checklist);
     if (data?.context) setGameContext(data.context);
 
-    // Handle Task Deep Linking
     if (view === ViewState.TASKS && data?.taskId) {
         setNavigationData({ taskId: data.taskId });
     } else {
@@ -67,32 +60,24 @@ const AppContent: React.FC = () => {
     setActiveView(view);
   };
 
-  // Handle Game Completion and Sync with Backend
   const handleGameComplete = async (xpEarned: number, score: number, gameName: string) => {
+    // Note: The specific game components now handle the saving (POST /api/submissions)
+    // internally before calling this function.
+    // This function is now responsible for updating the UI state.
+    
     try {
-      // 1. Save Result to Backend (which updates DB)
-      if (gameName.includes('Audit')) {
-        await gameService.saveAuditResult('audit-sim', score, xpEarned, {});
-      } else if (gameName.includes('Ishikawa')) {
-        await gameService.saveIshikawaResult('ishikawa-sim', score, xpEarned, [], []);
-      } else if (gameName.includes('LPA')) {
-        await gameService.saveLPAResult('lpa-sim', score, xpEarned, {});
-      }
-      
-      // 2. Fetch updated player stats from backend
+      // Fetch updated player stats from backend to get latest level/xp
       await refreshUser();
 
-      // 3. Check for achievements (Client-side visual only, backend should handle persistence)
+      // Check for achievements (Client-side visual for immediate feedback, though backend likely handles this too)
       const earnedAchievements = checkForNewAchievements(user, score, gameName);
       if (earnedAchievements.length > 0) {
         setNewAchievement(earnedAchievements[0]);
       }
     } catch (error) {
       console.error("Failed to sync game result", error);
-      alert("Warning: Could not save progress to server. Check connection.");
     }
     
-    // Return to Dashboard
     setActiveView(ViewState.DASHBOARD);
     setIsRealWorldMode(false);
   };

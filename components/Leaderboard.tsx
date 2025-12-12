@@ -20,7 +20,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ currentUser }) => {
         const data = await gameService.getLeaderboard();
         // Dynamically update 'You' in mock data to reflect current user stats
         const updatedData = data.map(entry => {
-            if (entry.id === currentUser.id || entry.id === 'u1') { // Match mock ID or real ID
+            if (entry.id === currentUser.id || (entry.id as any) === 'u1') { // Match mock ID or real ID
                 return {
                     ...entry,
                     id: currentUser.id,

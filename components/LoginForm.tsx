@@ -16,8 +16,10 @@ const LoginForm: React.FC = () => {
   // Mock handler for demonstration if backend is not running
   const handleMockLogin = async () => {
      setLoading(true);
-     // Fetch the consistent MOCK_PLAYER from gameService
-     const mockUser = await gameService.fetchPlayerProfile();
+     // Explicitly use getMockPlayer to avoid API call errors if backend is down
+     const mockUser = gameService.getMockPlayer();
+     // Simulate small delay
+     await new Promise(resolve => setTimeout(resolve, 500));
      login('mock-token', mockUser);
      setLoading(false);
   };

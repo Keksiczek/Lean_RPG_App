@@ -18,12 +18,25 @@ export enum Difficulty {
   HARD = 'hard',
 }
 
+// --- API Response Wrapper ---
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  code?: string;
+  error?: {
+    message: string;
+    code: string;
+  };
+}
+
+// --- Backend Models ---
+
 export interface Achievement {
   id: string;
   title: string;
   description: string;
-  icon: string; // Lucide icon name
-  unlockedAt?: string; // ISO date
+  icon: string;
+  unlockedAt?: string;
 }
 
 export interface Skill {
@@ -40,21 +53,28 @@ export interface Skill {
   };
 }
 
+// Aligned with Backend Prisma User
 export interface Player {
-  id: string;
-  username: string;
+  id: number; // Changed from string to number
+  email: string;
+  username: string; // mapped from 'name' if needed, or keeping username
+  role: string;
+  tenantId: string;
   level: number;
-  currentXp: number;
-  totalXp: number;
-  nextLevelXp: number;
-  gamesCompleted: number;
+  totalXp: number; // Backend source of truth
+  currentXp?: number; // Calculated on frontend
+  nextLevelXp?: number; // Calculated on frontend
+  gamesCompleted: number; // derived or stored in stats
   totalScore: number;
-  recentActivity: ActivityLog[];
+  createdAt: string;
+  
+  // Relations
   achievements: Achievement[];
+  recentActivity: ActivityLog[]; // Mapped from Submissions/UserQuests
 }
 
 export interface LeaderboardEntry {
-  id: string;
+  id: number;
   username: string;
   level: number;
   totalXp: number;
@@ -69,6 +89,28 @@ export interface ActivityLog {
   score: number;
   xp: number;
   date: string;
+}
+
+// --- Game/Submission Types ---
+
+export interface SubmissionPayload {
+  questId: string;
+  userId: number;
+  content: string; // JSON stringified result
+  userQuestId?: string;
+  workstationId?: string;
+  aiFeedback?: string;
+  aiScore5s?: string;
+  aiRiskLevel?: string;
+  status?: 'pending_analysis' | 'evaluated';
+}
+
+export interface SubmissionResponse {
+  id: number;
+  xpGain: number;
+  score: number;
+  aiFeedback?: string;
+  status: string;
 }
 
 // Notification Types
@@ -95,7 +137,7 @@ export interface ActionTask {
   createdAt: string;
   imageUrl?: string;
   location?: string;
-  workplaceId?: string; // Tighter integration with Factory Map
+  workplaceId?: string; 
 }
 
 // Map / Workplace Types
@@ -103,11 +145,11 @@ export interface Workplace {
   id: string;
   name: string;
   type: 'production' | 'logistics' | 'quality' | 'office';
-  coordinates: { x: number; y: number }; // Percentage 0-100
+  coordinates: { x: number; y: number }; 
   status: 'optimal' | 'warning' | 'critical';
   redTags: number;
   activeTrainingModules: number;
-  checklist: string[]; // 5S / LPA Checklist items
+  checklist: string[]; 
 }
 
 // 5S Audit Types
@@ -116,7 +158,6 @@ export interface AuditItem {
   name: string;
   status: 'clean' | 'dirty' | 'misplaced' | 'broken';
   correctAction: 'keep' | 'remove' | 'clean' | 'organize';
-  // For AR positioning (0-100%)
   arPosition?: { top: number; left: number };
 }
 
@@ -127,7 +168,7 @@ export interface AuditScene {
   difficulty: Difficulty;
   items: AuditItem[];
   xpReward: number;
-  isRealWorld?: boolean; // New flag
+  isRealWorld?: boolean;
 }
 
 // LPA Types
@@ -135,7 +176,7 @@ export interface LPAQuestion {
   id: string;
   question: string;
   category: 'Safety' | 'Quality' | 'Process' | 'Material';
-  correctAnswer: 'Yes' | 'No'; // 'Yes' typically means compliant
+  correctAnswer: 'Yes' | 'No'; 
 }
 
 export interface LPAAudit {
@@ -155,14 +196,13 @@ export interface LensChecklistResult {
 }
 
 export interface LensScanResult {
-  overallCompliance: number; // 0-100
+  overallCompliance: number; 
   checklistResults: LensChecklistResult[];
   detectedHazards: {
       name: string;
       action: string;
       severity: 'Low' | 'Medium' | 'High';
   }[];
-  // Backward compatibility for single item Red Tags
   itemDetected?: string; 
   observation?: string;
   suggested5SAction?: string;
@@ -177,11 +217,11 @@ export interface LPAScanResult {
   identifiedIssues: string[];
 }
 
-// Real World Red Tag (Data to send to Backend)
+// Real World Red Tag
 export interface RedTagData {
   id: string;
   timestamp: string;
-  imageUrl?: string; // Base64 or URL
+  imageUrl?: string; 
   location: string;
   itemDetected: string;
   actionNeeded: string;
@@ -204,7 +244,7 @@ export interface IshikawaProblem {
   description: string;
   difficulty: Difficulty;
   category: string;
-  isRealWorld?: boolean; // New flag
+  isRealWorld?: boolean; 
 }
 
 export interface IshikawaCause {
@@ -220,7 +260,6 @@ export interface IshikawaSolution {
   steps: string[];
 }
 
-// Chat Types
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model';

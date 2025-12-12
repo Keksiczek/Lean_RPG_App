@@ -30,6 +30,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (error) {
           console.error("Session expired or invalid", error);
           localStorage.removeItem('auth_token');
+          setIsAuthenticated(false);
+          setUser(null);
         }
       }
       setIsLoading(false);
@@ -47,6 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authService.logout();
     setUser(null);
     setIsAuthenticated(false);
+    window.location.href = '/login';
   };
 
   const refreshUser = async () => {

@@ -3,7 +3,7 @@ import { Player, Skill } from '../types';
 import { AVAILABLE_SKILLS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import * as Icons from 'lucide-react';
-import { Lock, CheckCircle2, Star } from 'lucide-react';
+import { Lock, Star } from 'lucide-react';
 
 interface SkillsPageProps {
   player: Player;
@@ -35,6 +35,15 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ player }) => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
+      <style>{`
+        @keyframes shine {
+          0% { transform: translateX(-150%) skewX(-12deg); }
+          100% { transform: translateX(150%) skewX(-12deg); }
+        }
+        .animate-shine {
+          animation: shine 3s infinite linear;
+        }
+      `}</style>
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('skills.title')}</h1>
         <p className="text-gray-500">{t('skills.subtitle')}</p>
@@ -48,32 +57,37 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ player }) => {
           return (
             <div 
               key={skill.id}
-              className={`relative rounded-xl border-2 transition-all duration-300 overflow-hidden ${
+              className={`relative rounded-xl border-2 transition-all duration-500 overflow-hidden group ${
                 isUnlocked 
-                  ? 'bg-white border-red-600 shadow-lg' 
-                  : 'bg-gray-50 border-gray-200 opacity-90'
+                  ? 'bg-white border-red-600 shadow-lg hover:shadow-2xl hover:scale-105 cursor-default' 
+                  : 'bg-gray-50 border-gray-200 opacity-90 grayscale-[0.5]'
               }`}
             >
+              {/* Shine Effect for Unlocked Skills */}
+              {isUnlocked && (
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -skew-x-12 translate-x-[-150%] animate-shine pointer-events-none"></div>
+              )}
+
               {/* Status Badge */}
-              <div className={`absolute top-0 right-0 px-3 py-1 text-xs font-bold uppercase rounded-bl-xl ${
+              <div className={`absolute top-0 right-0 px-3 py-1 text-xs font-bold uppercase rounded-bl-xl z-10 ${
                 isUnlocked 
-                  ? 'bg-red-600 text-white' 
+                  ? 'bg-red-600 text-white shadow-md' 
                   : 'bg-gray-200 text-gray-500'
               }`}>
                 {isUnlocked ? t('skills.unlocked') : t('skills.locked')}
               </div>
 
-              <div className="p-6">
+              <div className="p-6 relative z-0">
                 <div className="flex items-start space-x-4 mb-4">
-                  <div className={`p-4 rounded-xl flex items-center justify-center shrink-0 ${
+                  <div className={`p-4 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-300 ${
                     isUnlocked 
-                      ? 'bg-red-50 text-red-600' 
+                      ? 'bg-red-50 text-red-600 shadow-inner group-hover:bg-red-100' 
                       : 'bg-gray-200 text-gray-400'
                   }`}>
                     {isUnlocked ? <IconComponent className="w-8 h-8" /> : <Lock className="w-8 h-8" />}
                   </div>
                   <div>
-                    <h3 className={`text-lg font-bold mb-1 ${isUnlocked ? 'text-gray-900' : 'text-gray-500'}`}>
+                    <h3 className={`text-lg font-bold mb-1 transition-colors ${isUnlocked ? 'text-gray-900 group-hover:text-red-700' : 'text-gray-500'}`}>
                       {skill.title}
                     </h3>
                     <p className="text-sm text-gray-500 leading-snug">
@@ -84,8 +98,8 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ player }) => {
 
                 {/* Benefits Section */}
                 {isUnlocked && (
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 mb-4 flex items-center">
-                    <Star className="w-4 h-4 text-emerald-600 mr-2 shrink-0" />
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 mb-4 flex items-center shadow-sm">
+                    <Star className="w-4 h-4 text-emerald-600 mr-2 shrink-0 animate-pulse" />
                     <p className="text-xs font-bold text-emerald-800">
                       <span className="uppercase mr-1">{t('skills.benefit')}:</span> 
                       <span className="font-normal text-emerald-700">{skill.benefit}</span>
@@ -107,7 +121,7 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ player }) => {
                       </div>
                       <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full rounded-full transition-all duration-500 ${player.level >= skill.requirements.level ? 'bg-green-500' : 'bg-gray-400'}`}
+                          className={`h-full rounded-full transition-all duration-1000 ease-out ${player.level >= skill.requirements.level ? 'bg-green-500' : 'bg-gray-400'}`}
                           style={{ width: `${getProgress(player.level, skill.requirements.level)}%` }}
                         />
                       </div>
@@ -124,7 +138,7 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ player }) => {
                       </div>
                       <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full rounded-full transition-all duration-500 ${auditCount >= skill.requirements.auditCount ? 'bg-green-500' : 'bg-gray-400'}`}
+                          className={`h-full rounded-full transition-all duration-1000 ease-out ${auditCount >= skill.requirements.auditCount ? 'bg-green-500' : 'bg-gray-400'}`}
                           style={{ width: `${getProgress(auditCount, skill.requirements.auditCount)}%` }}
                         />
                       </div>
@@ -141,7 +155,7 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ player }) => {
                       </div>
                       <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full rounded-full transition-all duration-500 ${ishikawaCount >= skill.requirements.ishikawaCount ? 'bg-green-500' : 'bg-gray-400'}`}
+                          className={`h-full rounded-full transition-all duration-1000 ease-out ${ishikawaCount >= skill.requirements.ishikawaCount ? 'bg-green-500' : 'bg-gray-400'}`}
                           style={{ width: `${getProgress(ishikawaCount, skill.requirements.ishikawaCount)}%` }}
                         />
                       </div>
@@ -158,7 +172,7 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ player }) => {
                       </div>
                       <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full rounded-full transition-all duration-500 ${player.totalScore >= skill.requirements.totalScore ? 'bg-green-500' : 'bg-gray-400'}`}
+                          className={`h-full rounded-full transition-all duration-1000 ease-out ${player.totalScore >= skill.requirements.totalScore ? 'bg-green-500' : 'bg-gray-400'}`}
                           style={{ width: `${getProgress(player.totalScore, skill.requirements.totalScore)}%` }}
                         />
                       </div>
@@ -166,11 +180,6 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ player }) => {
                   )}
                 </div>
               </div>
-              
-              {/* Unlock Animation Overlay if just unlocked? (Optional future feature) */}
-              {isUnlocked && (
-                <div className="absolute inset-0 bg-white/10 pointer-events-none"></div>
-              )}
             </div>
           );
         })}

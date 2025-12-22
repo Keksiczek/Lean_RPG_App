@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ChecklistTemplate, AuditResponse, AuditSession, AuditFinding } from '../types';
-import { Camera, CheckCircle2, AlertTriangle, XCircle, Save, ArrowLeft, ArrowRight, PauseCircle } from 'lucide-react';
+import { Camera, CheckCircle2, AlertTriangle, XCircle, Save, ArrowLeft, ArrowRight, PauseCircle, Upload, Trash2, ImageIcon } from 'lucide-react';
 import { auditService } from '../services/auditService';
 import { useAuth } from '../contexts/AuthContext';
 import { WORKPLACES } from '../constants';
@@ -32,6 +33,7 @@ const AuditSessionComponent: React.FC<AuditSessionProps> = ({ templateId, onExit
   // UI State
   const [cameraOpen, setCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -111,6 +113,27 @@ const AuditSessionComponent: React.FC<AuditSessionProps> = ({ templateId, onExit
     }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && template) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              addPhotoToResponse(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const addPhotoToResponse = (dataUrl: string) => {
+      if (!template) return;
+      const item = template.items[currentIndex];
+      const updatedResponse = {
+          ...(responses[item.id] || { itemId: item.id, answer: '', timestamp: '', photoIds: [], notes: '' }),
+          photoIds: [...(responses[item.id]?.photoIds || []), dataUrl]
+      };
+      setResponses(prev => ({ ...prev, [item.id]: updatedResponse }));
+  };
+
   const capturePhoto = () => {
     if (videoRef.current && template) {
         const canvas = document.createElement('canvas');
@@ -118,16 +141,23 @@ const AuditSessionComponent: React.FC<AuditSessionProps> = ({ templateId, onExit
         canvas.height = videoRef.current.videoHeight;
         canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-        
-        const item = template.items[currentIndex];
-        const updatedResponse = {
-            ...(responses[item.id] || { itemId: item.id, answer: '', timestamp: '', photoIds: [], notes: '' }),
-            photoIds: [...(responses[item.id]?.photoIds || []), dataUrl]
-        };
-        
-        setResponses(prev => ({ ...prev, [item.id]: updatedResponse }));
+        addPhotoToResponse(dataUrl);
         setCameraOpen(false);
     }
+  };
+
+  const removePhoto = (photoIdx: number) => {
+      if (!template) return;
+      const item = template.items[currentIndex];
+      const resp = responses[item.id];
+      if (resp) {
+          const newPhotos = [...resp.photoIds];
+          newPhotos.splice(photoIdx, 1);
+          setResponses(prev => ({
+              ...prev,
+              [item.id]: { ...resp, photoIds: newPhotos }
+          }));
+      }
   };
 
   const handleSubmit = async () => {
@@ -220,7 +250,7 @@ const AuditSessionComponent: React.FC<AuditSessionProps> = ({ templateId, onExit
        {/* CAMERA MODAL */}
        {cameraOpen && (
           <div className="fixed inset-0 bg-black z-50 flex flex-col">
-             <video ref={videoRef} autoPlay className="flex-1 object-cover" />
+             <video ref={videoRef} autoPlay playsInline className="flex-1 object-cover" />
              <div className="p-6 bg-black flex justify-center gap-6 pb-12">
                 <button onClick={() => setCameraOpen(false)} className="text-white font-bold px-4">Cancel</button>
                 <button onClick={capturePhoto} className="w-16 h-16 bg-white rounded-full border-4 border-gray-300 shadow-xl"></button>
@@ -273,34 +303,53 @@ const AuditSessionComponent: React.FC<AuditSessionProps> = ({ templateId, onExit
                      Photo Evidence 
                      {currentItem.photo_required && <span className="text-red-500 ml-1">*</span>}
                    </label>
-                   <button 
-                      onClick={() => {
-                          navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                            .then(s => {
-                                setCameraOpen(true);
-                                if (videoRef.current) videoRef.current.srcObject = s;
-                            });
-                      }}
-                      className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center hover:bg-blue-100"
-                   >
-                      <Camera className="w-3 h-3 mr-1" /> Add Photo
-                   </button>
+                   <div className="flex gap-2">
+                       <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center hover:bg-slate-100 border"
+                       >
+                          <Upload className="w-3 h-3 mr-1" /> Upload
+                       </button>
+                       <button 
+                          onClick={() => {
+                              navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                                .then(s => {
+                                    setCameraOpen(true);
+                                    if (videoRef.current) videoRef.current.srcObject = s;
+                                });
+                          }}
+                          className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center hover:bg-blue-100"
+                       >
+                          <Camera className="w-3 h-3 mr-1" /> Take Photo
+                       </button>
+                       <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            accept="image/*" 
+                            onChange={handleFileUpload} 
+                        />
+                   </div>
                 </div>
                 
                 {currentResponse?.photoIds && currentResponse.photoIds.length > 0 ? (
-                    <div className="flex gap-2 overflow-x-auto pb-2">
+                    <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
                     {currentResponse.photoIds.map((src, i) => (
-                        <div key={i} className="relative w-24 h-24 shrink-0 group">
-                            <img src={src} className="w-full h-full rounded-lg object-cover border border-gray-200 shadow-sm" />
-                            <div className="absolute top-1 right-1 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 cursor-pointer">
-                                <XCircle className="w-3 h-3 text-white" />
-                            </div>
+                        <div key={i} className="relative w-28 h-28 shrink-0 group">
+                            <img src={src} className="w-full h-full rounded-xl object-cover border-4 border-white shadow-md transition-transform group-hover:scale-105" />
+                            <button 
+                                onClick={() => removePhoto(i)}
+                                className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
                         </div>
                     ))}
                     </div>
                 ) : (
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl h-24 flex items-center justify-center text-gray-400 text-sm">
-                        No photos added
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl h-24 flex flex-col items-center justify-center text-gray-400 text-xs gap-2">
+                        <ImageIcon className="w-6 h-6 opacity-20" />
+                        No photos added for this checkpoint
                     </div>
                 )}
              </div>

@@ -10,12 +10,12 @@ const solutionSchema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          title: { type: Type.STRING },
-          description: { type: Type.STRING },
+          title: { type: Type.STRING, description: "Action-oriented title of the countermeasure" },
+          description: { type: Type.STRING, description: "Detailed explanation of how this solves the root cause" },
           priority: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
           steps: {
             type: Type.ARRAY,
-            items: { type: Type.STRING }
+            items: { type: Type.STRING, description: "Numbered step for implementation" }
           }
         },
         required: ["title", "description", "priority", "steps"]
@@ -28,22 +28,22 @@ const solutionSchema = {
 const lensSchema = {
   type: Type.OBJECT,
   properties: {
-    overallCompliance: { type: Type.INTEGER, description: "0 to 100" },
-    observation: { type: Type.STRING },
+    overallCompliance: { type: Type.INTEGER, description: "Workplace compliance score from 0-100" },
+    observation: { type: Type.STRING, description: "General summary of the area condition" },
     detectedHazards: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          name: { type: Type.STRING },
-          action: { type: Type.STRING, enum: ["Sort", "Set in Order", "Shine", "Standardize", "Sustain"] },
+          name: { type: Type.STRING, description: "Name of the violating object or condition" },
+          action: { type: Type.STRING, enum: ["Sort", "Set in Order", "Shine", "Standardize", "Sustain"], description: "Specific 5S pillar to apply" },
           severity: { type: Type.STRING, enum: ["Low", "Medium", "High"] },
-          suggestion: { type: Type.STRING },
+          suggestion: { type: Type.STRING, description: "Corrective action recommendation" },
           location: {
             type: Type.OBJECT,
             properties: {
-              top: { type: Type.INTEGER, description: "Percentage from top 0-100" },
-              left: { type: Type.INTEGER, description: "Percentage from left 0-100" }
+              top: { type: Type.INTEGER, description: "Vertical percentage (0-100) from top of image" },
+              left: { type: Type.INTEGER, description: "Horizontal percentage (0-100) from left of image" }
             },
             required: ["top", "left"]
           }
@@ -58,16 +58,16 @@ const lensSchema = {
 const lpaSchema = {
   type: Type.OBJECT,
   properties: {
-    verified: { type: Type.BOOLEAN, description: "Whether the image matches the expected standard" },
-    confidence: { type: Type.INTEGER, description: "0 to 100" },
+    verified: { type: Type.BOOLEAN, description: "True if the standard is met, false otherwise" },
+    confidence: { type: Type.INTEGER, description: "AI confidence level 0-100" },
     observations: { 
       type: Type.ARRAY,
-      items: { type: Type.STRING }
+      items: { type: Type.STRING, description: "Specific visual evidence found" }
     },
-    safetyRisk: { type: Type.BOOLEAN },
+    safetyRisk: { type: Type.BOOLEAN, description: "Whether a safety violation was detected" },
     identifiedIssues: {
       type: Type.ARRAY,
-      items: { type: Type.STRING }
+      items: { type: Type.STRING, description: "List of process deviations" }
     }
   },
   required: ["verified", "confidence", "observations", "safetyRisk", "identifiedIssues"]
@@ -79,16 +79,18 @@ export const generateSolutions = async (
   causes: IshikawaCause[]
 ): Promise<IshikawaSolution[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Fix: Property 'text' does not exist on type 'IshikawaCause'. Using 'cause' property as defined in types.ts.
-  const causesText = causes.map(c => `- [${c.category}] ${c.cause}`).join("\n");
+  const causesText = causes.map(c => `- [${c.category}] ${c.cause} (Root Cause: ${c.isRootCause})`).join("\n");
 
   const prompt = `
-    You are a Lean Manufacturing Expert.
+    Role: Senior Continuous Improvement Consultant.
+    Task: Generate actionable countermeasures using PDCA logic.
     Problem: ${problemTitle}
     Context: ${problemDescription}
-    Identified Root Causes:
+    
+    Identified Causes:
     ${causesText}
-    Generate 3 specific countermeasures.
+    
+    Output 3 high-impact solutions in JSON format.
   `;
 
   try {
@@ -96,10 +98,9 @@ export const generateSolutions = async (
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
-        // Correct usage of generateContent config for JSON response.
         responseMimeType: "application/json",
         responseSchema: solutionSchema,
-        temperature: 0.3, 
+        temperature: 0.2, 
       },
     });
 
@@ -108,85 +109,91 @@ export const generateSolutions = async (
     const result = JSON.parse(text);
     return result.solutions || [];
   } catch (error) {
-    console.error("Error generating solutions:", error);
-    throw new Error("Failed to generate solutions.");
+    console.error("Ishikawa Solution Error:", error);
+    throw new Error("AI failed to generate solutions.");
   }
 };
 
 export const analyze5SImage = async (base64Image: string, context?: string, checklist: string[] = []): Promise<LensScanResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  let promptText = `Role: Real-time Lean 5S Auditor. Analyze the image for 5S violations in: "${context || "General Workplace"}". 
+  const promptText = `Role: Lean 5S Auditor. 
+  Perform a strict audit of the workstation: "${context || "Production Area"}". 
   
-  Focus: Clutter, missing labels, misplaced tools, safety hazards.
+  Focus on:
+  - Safety hazards (trips, spills)
+  - Clutter (items not needed for current work)
+  - Organization (shadow boards, labels)
+  - Cleanliness (dust, oil, waste)
   
-  For EVERY violation:
-  1. Identify the object/area precisely.
-  2. Map to Sort, Set in Order, Shine, Standardize, or Sustain.
-  3. Provide a practical suggestion.
-  4. COORDINATES: Estimate (top, left) percentages (0-100) where the violation is visible.
+  Instructions for JSON Output:
+  1. Calculate compliance score based on 5S standards.
+  2. For EACH violation, estimate visual coordinates (top/left) as percentages.
+  3. Reference this checklist: ${checklist.join(', ')}.
   
-  Checklist context: ${checklist.join(', ')}`;
+  Be precise and critical. If it's not standard, it's a violation.`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: {
-        // Multi-part input with image and text.
         parts: [{ inlineData: { mimeType: "image/jpeg", data: base64Image } }, { text: promptText }]
       },
-      config: { responseMimeType: "application/json", responseSchema: lensSchema }
+      config: { 
+        responseMimeType: "application/json", 
+        responseSchema: lensSchema,
+        temperature: 0.1
+      }
     });
 
     const text = response.text;
-    if (!text) throw new Error("No vision response");
+    if (!text) throw new Error("Vision AI returned empty response");
     const result = JSON.parse(text);
     
-    const primaryHazard = result.detectedHazards?.[0];
+    const primary = result.detectedHazards?.[0];
     return { 
       ...result, 
-      itemDetected: primaryHazard?.name, 
-      suggested5SAction: primaryHazard?.action, 
-      practicalAction: primaryHazard?.suggestion,
-      checklistResults: []
+      itemDetected: primary?.name, 
+      suggested5SAction: primary?.action, 
+      practicalAction: primary?.suggestion,
+      checklistResults: result.checklistResults || []
     };
   } catch (error) {
-    console.error("Vision Error:", error);
-    return { overallCompliance: 0, observation: "Error", detectedHazards: [], checklistResults: [], itemDetected: "Error", suggested5SAction: "N/A", practicalAction: "N/A" };
+    console.error("5S Scan Error:", error);
+    return { overallCompliance: 0, observation: "Scan failure", detectedHazards: [], checklistResults: [], itemDetected: "N/A", suggested5SAction: "N/A", practicalAction: "N/A" };
   }
 };
 
 export const analyzeLPAImage = async (base64Image: string, question: string, expectedAnswer: string): Promise<LPAScanResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Task: Verify industrial process compliance.
-  Question being checked: "${question}"
-  Expected Answer (Standard): "${expectedAnswer}"
+  const prompt = `Task: Layered Process Audit (LPA) Verification.
+  Standard being verified: "${question}"
+  Target State (OK): "${expectedAnswer}"
   
-  Analyze the image. Does the visual evidence match the expected standard? 
-  Report "verified: true" if it complies, "false" if it doesn't. 
-  List specific observations.`;
+  Evaluate the provided image. Does the reality match the standard? 
+  Report evidence and confidence score.`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: {
-        // Multi-part input with image and text.
         parts: [{ inlineData: { mimeType: "image/jpeg", data: base64Image } }, { text: prompt }]
       },
       config: { responseMimeType: "application/json", responseSchema: lpaSchema }
     });
     const text = response.text;
-    const result = text ? JSON.parse(text) : { verified: false, confidence: 0, observations: [], safetyRisk: true, identifiedIssues: [] };
+    const result = text ? JSON.parse(text) : null;
     
+    if (!result) throw new Error("LPA Verification Error");
+
     return {
         ...result,
-        compliance: result.verified ? (result.confidence > 80 ? 'High' : 'Medium') : 'Low',
-        safetyRisk: result.safetyRisk ?? true,
+        compliance: result.verified ? (result.confidence > 85 ? 'High' : 'Medium') : 'Low',
+        safetyRisk: result.safetyRisk ?? false,
         identifiedIssues: result.identifiedIssues ?? []
     };
   } catch (error) {
-    console.error("LPA Vision Error:", error);
-    // Fix: Added missing verified and confidence properties to match LPAScanResult interface.
-    return { verified: false, confidence: 0, compliance: "Low", observations: ["Error analyzing image"], safetyRisk: true, identifiedIssues: [] as string[] };
+    console.error("LPA Analysis Error:", error);
+    return { verified: false, confidence: 0, compliance: "Low", observations: ["System failed to analyze process"], safetyRisk: true, identifiedIssues: ["Network/AI error"] };
   }
 };
 
@@ -194,20 +201,22 @@ let chatSession: Chat | null = null;
 export const sendMessageToSensei = async (message: string, context?: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   if (!chatSession) {
-    // Create a new chat session with system instruction.
     chatSession = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: "You are 'Lean Sensei', a wise and encouraging mentor in a manufacturing environment. Guide users through Lean principles using Socratic questioning. Keep responses concise and practical."
+        systemInstruction: `You are 'Lean Sensei', an elite Toyota Production System mentor. 
+        Style: Encouraging, Socratic, highly practical. 
+        Focus: 5S, Kaizen, 8 Wastes (Muda, Mura, Muri), Root Cause Analysis. 
+        Tone: Wise, concise, avoiding corporate fluff. Always relate answers to the factory floor (Gemba).`
       }
     });
   }
   try {
-    const content = context ? `[CONTEXT: ${context}] ${message}` : message;
+    const content = context ? `[gemba_location: ${context}] ${message}` : message;
     const result = await chatSession.sendMessage({ message: content });
-    return result.text || "I'm thinking...";
+    return result.text || "I am reflecting on your question...";
   } catch (error) {
-    chatSession = null; // Reset on error
-    return "Connection interrupted. Let's try that again.";
+    chatSession = null;
+    return "The connection to the Sensei's chamber was lost. Please try again.";
   }
 };

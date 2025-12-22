@@ -1,5 +1,4 @@
-
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import ErrorFallback from './ui/ErrorFallback';
 
 interface ErrorBoundaryProps {
@@ -16,30 +15,28 @@ interface ErrorBoundaryState {
 
 /**
  * Standard Error Boundary component to catch rendering errors.
- * Uses explicitly imported Component class to avoid issues with inherited properties in some TypeScript configurations.
+ * Explicitly using React.Component to ensure props and state are correctly typed.
  */
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { 
-      hasError: false, 
-      error: null 
-    };
-  }
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Use public class field for state initialization to avoid constructor context issues
+  public state: ErrorBoundaryState = { 
+    hasError: false, 
+    error: null 
+  };
 
   /**
    * Updates state so the next render will show the fallback UI.
    */
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
   /**
    * Lifecycle method to catch errors in children components.
    */
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    // Correct access to props via this.props.
+    // Accessing this.props from React.Component
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
@@ -48,20 +45,20 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   /**
    * Resets the error state to allow the application to attempt re-rendering.
    */
-  handleReset = () => {
-    // Correct access to setState via this.setState.
+  public handleReset = () => {
+    // Accessing this.setState from React.Component
     this.setState({ hasError: false, error: null });
-    // Correct access to props via this.props.
+    // Accessing this.props from React.Component
     if (this.props.onReset) {
       this.props.onReset();
     }
   };
 
-  render() {
+  public render() {
+    // Accessing this.state and this.props from React.Component
     const { hasError, error } = this.state;
     const { fallback, children } = this.props;
 
-    // Fix: Access state and props correctly to satisfy TypeScript requirements for class components.
     if (hasError) {
       if (fallback) {
         return fallback as React.ReactNode;
@@ -69,7 +66,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       return <ErrorFallback error={error} onRetry={this.handleReset} />;
     }
 
-    return children;
+    return children as React.ReactNode;
   }
 }
 

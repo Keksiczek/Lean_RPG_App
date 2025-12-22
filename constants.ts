@@ -1,9 +1,62 @@
+
 import { AuditScene, LPAAudit, Difficulty, IshikawaCategory, IshikawaProblem, Achievement, Skill, Workplace } from './types';
 
 export const LEVEL_THRESHOLDS = [0, 1000, 2500, 4500, 7000, 10000];
 
+// Added missing achievements list for gamification tracking
+export const AVAILABLE_ACHIEVEMENTS: Achievement[] = [
+  { id: 'first_steps', title: 'First Steps', description: 'Complete your first training module.', icon: 'Zap' },
+  { id: 'consistency', title: 'Consistency King', description: 'Complete 5 training modules in one week.', icon: 'Calendar' },
+  { id: 'lean_enthusiast', title: 'Lean Enthusiast', description: 'Reach Level 2.', icon: 'Star' },
+  { id: 'master_mind', title: 'Master Mind', description: 'Reach Level 5.', icon: 'Trophy' },
+  { id: 'junior_auditor', title: 'Junior Auditor', description: 'Score 100% on a virtual audit.', icon: 'ClipboardList' },
+  { id: 'problem_solver', title: 'Problem Solver', description: 'Complete your first Ishikawa diagram.', icon: 'GitBranch' },
+];
+
+// Added missing skills list for progression system
+export const AVAILABLE_SKILLS: Skill[] = [
+  {
+    id: 's1',
+    title: '5S Specialist',
+    description: 'Master the art of workplace organization.',
+    benefit: '+10% XP from Audit games',
+    icon: 'CheckCircle',
+    requirements: { level: 2, auditCount: 5 }
+  },
+  {
+    id: 's2',
+    title: 'RCA Expert',
+    description: 'Expertise in Root Cause Analysis using 6M.',
+    benefit: 'Unlock advanced Ishikawa templates',
+    icon: 'GitBranch',
+    requirements: { level: 3, ishikawaCount: 3 }
+  },
+  {
+    id: 's3',
+    title: 'Visual Management',
+    description: 'Use visual cues to maintain standards.',
+    benefit: 'Red Tag creation time reduced',
+    icon: 'Eye',
+    requirements: { totalScore: 5000 }
+  }
+];
+
 export const TRANSLATIONS = {
   cs: {
+    common: {
+      next: "Další",
+      previous: "Předchozí",
+      finish: "Dokončit",
+      cancel: "Zrušit",
+      save: "Uložit",
+      score: "Skóre",
+      xp: "XP",
+      loading: "Načítání...",
+      error: "Chyba",
+      success: "Úspěch",
+      step: "Krok",
+      confirm: "Potvrdit"
+    },
     menu: {
       sections: {
         monitoring: "Monitoring",
@@ -33,6 +86,58 @@ export const TRANSLATIONS = {
       noActivity: "Žádné nedávné hry.",
       game: "Hra",
       score: "Skóre"
+    },
+    games: {
+      audit: {
+        title: "5S Audit",
+        subtitle: "Dodržujte metodiku pro zajištění excelence pracoviště.",
+        arTitle: "AR Skenování",
+        arSetup: "Kalibrace AR",
+        arHint: "Namiřte kameru na pracovní stanici k analýze.",
+        confirmTag: "Potvrdit Červený Štítek",
+        issueTag: "Vydat Štítek",
+        syncing: "Synchronizace s tovární databází...",
+        finding: "Nález 5S",
+        recommendation: "Doporučení Senseie",
+        steps: {
+          sort: { name: "Sort (Seiri - Třídění)", desc: "Odstraňte nepotřebné předměty z pracoviště." },
+          set: { name: "Set in Order (Seiton - Uspořádání)", desc: "Vše má své místo a vše je na svém místě." },
+          shine: { name: "Shine (Seiso - Čištění)", desc: "Udržujte pracoviště čisté a stroje v kondici." },
+          standard: { name: "Standardize (Seiketsu - Standardizace)", desc: "Vytvořte pravidla pro udržení prvních 3S." },
+          sustain: { name: "Sustain (Shitsuke - Disciplína)", desc: "Udělejte z 5S každodenní zvyk." }
+        }
+      },
+      ishikawa: {
+        title: "Analýza Rybí Kostry",
+        subtitle: "Identifikujte kořenové příčiny pomocí 6M frameworku.",
+        addCause: "Přidat příčinu",
+        isRoot: "Identifikována hlavní příčina",
+        generate: "Generovat nápravná opatření",
+        diagram: "Ishikawa Diagram",
+        categories: {
+          man: "Lidé (Man)",
+          machine: "Stroje (Machine)",
+          method: "Metody (Method)",
+          material: "Materiál (Material)",
+          measurement: "Měření (Measurement)",
+          env: "Prostředí (Environment)"
+        }
+      },
+      gemba: {
+        title: "Gemba Walk",
+        subtitle: "Jděte na dílnu, pozorujte procesy a hledejte plýtvání.",
+        record: "Co pozorujete?",
+        type: "Klasifikace",
+        nextStation: "Další stanoviště",
+        summary: "Shrnutí Gemby"
+      },
+      lpa: {
+        title: "LPA Audit",
+        subtitle: "Ověření standardní práce na pracovišti.",
+        verifyPhoto: "Vyfotit důkaz pro ověření",
+        aiProcessing: "AI Ověřování...",
+        finalize: "Finalizovat LPA"
+      }
     },
     tasks: {
       title: "Akční Plán Nápravných Opatření",
@@ -116,6 +221,20 @@ export const TRANSLATIONS = {
     }
   },
   en: {
+    common: {
+      next: "Next",
+      previous: "Previous",
+      finish: "Finish",
+      cancel: "Cancel",
+      save: "Save",
+      score: "Score",
+      xp: "XP",
+      loading: "Loading...",
+      error: "Error",
+      success: "Success",
+      step: "Step",
+      confirm: "Confirm"
+    },
     menu: {
       sections: {
         monitoring: "Monitoring",
@@ -145,6 +264,58 @@ export const TRANSLATIONS = {
       noActivity: "No recent games played.",
       game: "Game",
       score: "Score"
+    },
+    games: {
+      audit: {
+        title: "5S Audit",
+        subtitle: "Follow methodology to ensure workstation excellence.",
+        arTitle: "AR Scan",
+        arSetup: "AR Calibration",
+        arHint: "Point camera at workstation for analysis.",
+        confirmTag: "Confirm Red Tag",
+        issueTag: "Issue Tag",
+        syncing: "Syncing with factory record...",
+        finding: "5S Finding",
+        recommendation: "Sensei Recommendation",
+        steps: {
+          sort: { name: "Sort (Seiri)", desc: "Remove unnecessary items from the workplace." },
+          set: { name: "Set in Order (Seiton)", desc: "A place for everything and everything in its place." },
+          shine: { name: "Shine (Seiso)", desc: "Keep the area clean and equipment maintained." },
+          standard: { name: "Standardize (Seiketsu)", desc: "Establish rules for maintaining the first 3S." },
+          sustain: { name: "Sustain (Shitsuke)", desc: "Make 5S a daily habit." }
+        }
+      },
+      ishikawa: {
+        title: "Fishbone Analysis",
+        subtitle: "Identify root causes using the 6M framework.",
+        addCause: "Add Cause",
+        isRoot: "Root cause identified",
+        generate: "Generate Countermeasures",
+        diagram: "Ishikawa Diagram",
+        categories: {
+          man: "Man",
+          machine: "Machine",
+          method: "Method",
+          material: "Material",
+          measurement: "Measurement",
+          env: "Environment"
+        }
+      },
+      gemba: {
+        title: "Gemba Walk",
+        subtitle: "Go to the floor, observe processes and find waste.",
+        record: "What do you observe?",
+        type: "Classification",
+        nextStation: "Next Station",
+        summary: "Gemba Summary"
+      },
+      lpa: {
+        title: "LPA Audit",
+        subtitle: "Verification of standard work on the floor.",
+        verifyPhoto: "Capture verification photo",
+        aiProcessing: "AI Verification...",
+        finalize: "Finalize LPA"
+      }
     },
     tasks: {
       title: "Corrective Action Plan",
@@ -229,178 +400,77 @@ export const TRANSLATIONS = {
   }
 };
 
-export const AVAILABLE_SKILLS: Skill[] = [
-  {
-    id: '5s_master',
-    title: '5S Master Auditor',
-    description: 'Expertise in identifying workplace waste and organization issues instantly.',
-    benefit: 'Visual Audit Hint: Highlights one missed item in 5S games.',
-    icon: 'ScanEye',
-    requirements: {
-      auditCount: 5,
-      level: 2
-    }
-  },
-  {
-    id: 'lpa_pro',
-    title: 'LPA Professional',
-    description: 'Consistent execution of Layered Process Audits ensuring standard work.',
-    benefit: 'Audit Speed: +10% score for fast LPA completion.',
-    icon: 'ClipboardList',
-    requirements: {
-      level: 3,
-      totalScore: 3000
-    }
-  },
-  {
-    id: 'root_cause_analyst',
-    title: 'Root Cause Analyst',
-    description: 'Deep understanding of the 6M framework and causal relationships.',
-    benefit: 'Ishikawa Insight: Auto-fills one category in Ishikawa diagrams.',
-    icon: 'GitBranch',
-    requirements: {
-      ishikawaCount: 5,
-      level: 3
-    }
-  },
-  {
-    id: 'kaizen_leader',
-    title: 'Kaizen Leader',
-    description: 'Demonstrated leadership in continuous improvement initiatives.',
-    benefit: 'XP Multiplier: Earn +10% XP from all training modules.',
-    icon: 'TrendingUp',
-    requirements: {
-      totalScore: 5000,
-      level: 4
-    }
-  },
-  {
-    id: 'efficiency_expert',
-    title: 'Efficiency Expert',
-    description: 'Mastery of flow and standard work principles.',
-    benefit: 'Time Bonus: +30 seconds in timed challenges.',
-    icon: 'Timer',
-    requirements: {
-      level: 5
-    }
-  }
-];
-
-export const AVAILABLE_ACHIEVEMENTS: Omit<Achievement, 'unlockedAt'>[] = [
-  {
-    id: 'first_steps',
-    title: 'First Steps',
-    description: 'Complete your first training module.',
-    icon: 'Footprints'
-  },
-  {
-    id: 'junior_auditor',
-    title: 'Junior Auditor',
-    description: 'Complete a 5S Audit with a perfect score (100%).',
-    icon: 'ClipboardCheck'
-  },
-  {
-    id: 'process_guardian',
-    title: 'Process Guardian',
-    description: 'Complete 3 LPA audits.',
-    icon: 'ShieldCheck'
-  },
-  {
-    id: 'problem_solver',
-    title: 'Problem Solver',
-    description: 'Complete an Ishikawa Analysis.',
-    icon: 'BrainCircuit'
-  },
-  {
-    id: 'lean_enthusiast',
-    title: 'Lean Enthusiast',
-    description: 'Reach Level 2.',
-    icon: 'Zap'
-  },
-  {
-    id: 'consistency',
-    title: 'Consistent Improver',
-    description: 'Complete 5 training modules.',
-    icon: 'Repeat'
-  },
-  {
-    id: 'master_mind',
-    title: 'Kaizen Master',
-    description: 'Reach Level 5.',
-    icon: 'Crown'
-  }
-];
-
+// Data pro scény (zůstávají v angličtině identifikátory, ale texty budou lokalizovány při renderu pokud je to nutné)
 export const WORKPLACES: Workplace[] = [
   {
     id: 'wp-1',
-    name: 'Assembly Line A',
+    name: 'Montážní Linka A',
     type: 'production',
     coordinates: { x: 20, y: 30 },
     status: 'warning',
     redTags: 2,
     activeTrainingModules: 1,
     checklist: [
-      "Walkways are clear of boxes",
-      "Tools are in shadow boards",
-      "No oil leaks on floor"
+      "Průchody jsou čisté",
+      "Nástroje ve stínových tabulích",
+      "Žádné úniky oleje na podlaze"
     ]
   },
   {
     id: 'wp-2',
-    name: 'Paint Shop',
+    name: 'Lakovna',
     type: 'production',
     coordinates: { x: 50, y: 20 },
     status: 'optimal',
     redTags: 0,
     activeTrainingModules: 2,
     checklist: [
-      "Ventilation filters checked",
-      "Paints stored in fireproof cabinet",
-      "PPE available at entrance"
+      "Filtry ventilace zkontrolovány",
+      "Barvy v ohnivzdorné skříni",
+      "OOPP dostupné u vchodu"
     ]
   },
   {
     id: 'wp-3',
-    name: 'Warehouse Dispatch',
+    name: 'Sklad - Expedice',
     type: 'logistics',
     coordinates: { x: 80, y: 40 },
     status: 'critical',
     redTags: 5,
     activeTrainingModules: 1,
     checklist: [
-      "Forklift charging area clear",
-      "Pallets stacked max 3 high",
-      "Aisle markings visible",
-      "Expired goods separated"
+      "Nabíjecí zóna VZV čistá",
+      "Palety max 3 na sobě",
+      "Značení uliček viditelné",
+      "Prošlé zboží separováno"
     ]
   },
   {
     id: 'wp-4',
-    name: 'QA Lab',
+    name: 'QA Laboratoř',
     type: 'quality',
     coordinates: { x: 30, y: 70 },
     status: 'optimal',
     redTags: 0,
     activeTrainingModules: 1,
     checklist: [
-      "Calibration stickers valid",
-      "Desk surfaces clear",
-      "Samples labeled correctly"
+      "Kalibrační štítky platné",
+      "Pracovní plochy čisté",
+      "Vzorky správně označené"
     ]
   },
   {
     id: 'wp-5',
-    name: 'Manager Office',
+    name: 'Kancelář Manažera',
     type: 'office',
     coordinates: { x: 70, y: 75 },
     status: 'warning',
     redTags: 1,
     activeTrainingModules: 0,
     checklist: [
-      "Confidential files locked",
-      "Whiteboards updated",
-      "Meeting room chairs arranged"
+      "Důvěrné spisy zamčené",
+      "Tabule KPI aktualizované",
+      "Zasedací místnost uklizená"
     ]
   }
 ];
@@ -408,30 +478,30 @@ export const WORKPLACES: Workplace[] = [
 export const AUDIT_SCENES: AuditScene[] = [
   {
     id: 'audit-1',
-    title: 'Factory Floor - Zone A',
-    description: 'The assembly area is cluttered. Identify items that need to be Sorted (removed) or Shined (cleaned).',
+    title: 'Hala - Zóna A',
+    description: 'Montážní prostor je zaneřáděný. Identifikujte položky k odstranění (Sort) nebo vyčištění (Shine).',
     difficulty: Difficulty.EASY,
     xpReward: 150,
     items: [
-      { id: '1', name: 'Broken Wrench', status: 'broken', correctAction: 'remove' },
-      { id: '2', name: 'Oil Spill', status: 'dirty', correctAction: 'clean' },
-      { id: '3', name: 'Standard Tools', status: 'clean', correctAction: 'keep' },
-      { id: '4', name: 'Scrap Metal', status: 'misplaced', correctAction: 'remove' },
-      { id: '5', name: 'Safety Instructions', status: 'clean', correctAction: 'keep' },
+      { id: '1', name: 'Zlomený klíč', status: 'broken', correctAction: 'remove' },
+      { id: '2', name: 'Rozlitý olej', status: 'dirty', correctAction: 'clean' },
+      { id: '3', name: 'Standardní nářadí', status: 'clean', correctAction: 'keep' },
+      { id: '4', name: 'Kovový šrot', status: 'misplaced', correctAction: 'remove' },
+      { id: '5', name: 'Bezpečnostní instrukce', status: 'clean', correctAction: 'keep' },
     ]
   },
   {
     id: 'audit-2',
-    title: 'Warehouse Dispatch',
-    description: 'High traffic area. Focus on Standardization and Set in Order.',
+    title: 'Sklad Expedice',
+    description: 'Vysokofrekvenční zóna. Zaměřte se na standardizaci a uspořádání.',
     difficulty: Difficulty.MEDIUM,
     xpReward: 300,
     items: [
-      { id: '6', name: 'Unlabeled Box', status: 'misplaced', correctAction: 'organize' },
-      { id: '7', name: 'Pallet Jack (In Walkway)', status: 'misplaced', correctAction: 'organize' },
-      { id: '8', name: 'Packing Tape', status: 'clean', correctAction: 'keep' },
-      { id: '9', name: 'Old Shipping Labels', status: 'dirty', correctAction: 'clean' },
-      { id: '10', name: 'Expired Inventory', status: 'broken', correctAction: 'remove' },
+      { id: '6', name: 'Neoznačená krabice', status: 'misplaced', correctAction: 'organize' },
+      { id: '7', name: 'Paleťák v uličce', status: 'misplaced', correctAction: 'organize' },
+      { id: '8', name: 'Balicí páska', status: 'clean', correctAction: 'keep' },
+      { id: '9', name: 'Staré přepravní štítky', status: 'dirty', correctAction: 'clean' },
+      { id: '10', name: 'Expirovaný materiál', status: 'broken', correctAction: 'remove' },
     ]
   }
 ];
@@ -439,29 +509,15 @@ export const AUDIT_SCENES: AuditScene[] = [
 export const LPA_AUDITS: LPAAudit[] = [
   {
     id: 'lpa-1',
-    title: 'Daily Shift Start Check',
-    description: 'Verify basic safety and operational readiness at the start of the shift.',
+    title: 'Kontrola na začátku směny',
+    description: 'Ověření základní bezpečnosti a provozní připravenosti.',
     frequency: 'Daily',
     xpReward: 100,
     questions: [
-      { id: 'q1', question: 'Are operators wearing required PPE (Safety Glasses, Shoes)?', category: 'Safety', correctAnswer: 'Yes' },
-      { id: 'q2', question: 'Is the work area free of trip hazards?', category: 'Safety', correctAnswer: 'Yes' },
-      { id: 'q3', question: 'Are Standard Work Instructions (SWI) visible?', category: 'Process', correctAnswer: 'Yes' },
-      { id: 'q4', question: 'Is the first piece inspection completed?', category: 'Quality', correctAnswer: 'Yes' }
-    ]
-  },
-  {
-    id: 'lpa-2',
-    title: 'Welding Station Process Audit',
-    description: 'Deep dive into welding parameters and material handling.',
-    frequency: 'Weekly',
-    xpReward: 250,
-    questions: [
-      { id: 'w1', question: 'Is the welding curtain fully closed?', category: 'Safety', correctAnswer: 'Yes' },
-      { id: 'w2', question: 'Are current and voltage settings matching the control plan?', category: 'Process', correctAnswer: 'Yes' },
-      { id: 'w3', question: 'Are raw materials stored in designated bins?', category: 'Material', correctAnswer: 'Yes' },
-      { id: 'w4', question: 'Is the fume extraction system active?', category: 'Safety', correctAnswer: 'Yes' },
-      { id: 'w5', question: 'Are scrap parts red-tagged immediately?', category: 'Quality', correctAnswer: 'Yes' }
+      { id: 'q1', question: 'Mají operátoři OOPP (brýle, obuv)?', category: 'Safety', correctAnswer: 'Yes' },
+      { id: 'q2', question: 'Je prostor bez rizik zakopnutí?', category: 'Safety', correctAnswer: 'Yes' },
+      { id: 'q3', question: 'Jsou standardní instrukce (SWI) viditelné?', category: 'Process', correctAnswer: 'Yes' },
+      { id: 'q4', question: 'Byla provedena kontrola prvního kusu?', category: 'Quality', correctAnswer: 'Yes' }
     ]
   }
 ];
@@ -469,15 +525,15 @@ export const LPA_AUDITS: LPAAudit[] = [
 export const ISHIKAWA_PROBLEMS: IshikawaProblem[] = [
   {
     id: 'prob-1',
-    title: 'High Defect Rate in Painting',
-    description: 'The defect rate in the chassis painting booth has risen from 2% to 8% in the last week.',
+    title: 'Vysoká zmetkovitost lakování',
+    description: 'Míra vad v lakovacím boxu vzrostla z 2% na 8% během posledního týdne.',
     difficulty: Difficulty.MEDIUM,
     category: 'Quality'
   },
   {
     id: 'prob-2',
-    title: 'Assembly Line Stoppage',
-    description: 'Station 4 experiences frequent micro-stops (under 2 minutes) causing a 15% OEE loss.',
+    title: 'Zastavení montážní linky',
+    description: 'Stanice 4 vykazuje časté mikrozastávky (pod 2 minuty), způsobující 15% ztrátu OEE.',
     difficulty: Difficulty.HARD,
     category: 'Production'
   }

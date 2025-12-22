@@ -1,7 +1,16 @@
-import React from 'react';
-import { ViewState } from '../types';
-import { ClipboardCheck, GitBranch, ArrowRight, ScanLine, Briefcase, Zap, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { ViewState, Quest, Submission } from '../types';
+import { ChevronLeft, Loader2, Award, Sparkles, RefreshCw, Trophy, Target, Zap, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useFetch } from '../hooks/useApi';
+import { ENDPOINTS } from '../config';
+import SubmissionStatus from './SubmissionStatus';
+import { useAuth } from '../contexts/AuthContext';
+import GameSelector from './minigames/GameSelector';
+import AuditGame from './minigames/AuditGame';
+import IshikawaGame from './minigames/IshikawaGame';
+import GembaGame from './minigames/GembaGame';
+import QuestCardSkeleton from './skeletons/QuestCardSkeleton';
 
 interface GameHubProps {
   onSelectGame: (view: ViewState, isRealWorld?: boolean) => void;
@@ -10,153 +19,270 @@ interface GameHubProps {
 
 const GameHub: React.FC<GameHubProps> = ({ onSelectGame, level }) => {
   const { t } = useLanguage();
+  const { refreshUser, user } = useAuth();
+  const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
+  const [activeMinigame, setActiveMinigame] = useState<'audit' | 'ishikawa' | 'gemba' | null>(null);
+  const [gameResult, setGameResult] = useState<any>(null);
+  
+  const { data: quests, loading: loadingQuests } = useFetch<Quest[]>(ENDPOINTS.QUESTS.LIST);
 
-  return (
-    <div className="space-y-8 animate-fade-in pb-12">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('hub.title')}</h1>
-        <p className="text-gray-500">{t('hub.subtitle')}</p>
-      </div>
+  const handleQuestComplete = async (submission: Submission) => {
+    await refreshUser();
+  };
 
-      {/* SECTION 1: REAL WORLD APPLICATION */}
-      <div className="bg-gray-900 rounded-2xl p-6 text-white shadow-xl overflow-hidden relative">
-        {/* Red accent glow */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-red-600 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -mr-16 -mt-16 animate-pulse"></div>
-        
-        <div className="relative z-10 flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center">
-              <Briefcase className="w-6 h-6 mr-2 text-red-500" /> 
-              {t('hub.realWorld')}
-            </h2>
-            <p className="text-gray-400 text-sm mt-1">{t('hub.realWorldDesc')}</p>
-          </div>
-          <span className="bg-red-900/40 border border-red-500/30 text-red-200 text-xs px-3 py-1 rounded-full font-bold">
-            {t('hub.backendConnected')}
-          </span>
+  const handleMinigameComplete = async (result: any) => {
+    setGameResult(result);
+    await refreshUser();
+  };
+
+  const resetSelection = () => {
+    setSelectedQuest(null);
+    setActiveMinigame(null);
+    setGameResult(null);
+  };
+
+  // --- RENDERING LOGIC ---
+
+  // 1. Result Summary View
+  if (gameResult) {
+    return (
+      <div className="max-w-2xl mx-auto bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden animate-scale-in">
+        <div className="bg-slate-900 p-12 text-center text-white relative">
+           <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10 pointer-events-none">
+              <div className="absolute -top-24 -left-24 w-96 h-96 bg-red-600 rounded-full blur-3xl animate-pulse"></div>
+              <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-blue-600 rounded-full blur-3xl"></div>
+           </div>
+
+           <div className="relative z-10">
+              <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/20">
+                 <Trophy className="w-12 h-12 text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]" />
+              </div>
+              <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">Challenge Mastered!</h2>
+              <p className="text-slate-400 font-medium">Your activity has been evaluated by the CI committee.</p>
+           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Real World 5S Scanner */}
+        <div className="p-10">
+           <div className="grid grid-cols-2 gap-6 mb-10">
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 text-center">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">XP Reward</p>
+                 <div className="flex items-center justify-center gap-2">
+                    <Zap className="w-6 h-6 text-amber-500 fill-current" />
+                    <span className="text-3xl font-black text-slate-900">+{gameResult.xp}</span>
+                 </div>
+              </div>
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 text-center">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                 <div className="flex items-center justify-center gap-2">
+                    <Award className="w-6 h-6 text-red-600" />
+                    <span className="text-xl font-black text-slate-900 uppercase">Success</span>
+                 </div>
+              </div>
+           </div>
+
+           {gameResult.score !== undefined && (
+             <div className="mb-10">
+                <div className="flex justify-between items-center mb-2 px-1">
+                   <span className="text-sm font-bold text-slate-600">Accuracy Score</span>
+                   <span className="text-sm font-black text-red-600">{gameResult.score}%</span>
+                </div>
+                <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                   <div 
+                     className="h-full bg-red-600 transition-all duration-1000 ease-out"
+                     style={{ width: `${gameResult.score}%` }}
+                   ></div>
+                </div>
+             </div>
+           )}
+
+           <div className="flex gap-4">
+              <button 
+                onClick={() => setGameResult(null)}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 font-black uppercase tracking-widest rounded-2xl hover:bg-slate-200 transition-all flex items-center justify-center"
+              >
+                <RefreshCw className="w-5 h-5 mr-2" /> Play Again
+              </button>
+              <button 
+                onClick={resetSelection}
+                className="flex-1 py-4 bg-slate-900 text-white font-black uppercase tracking-widest rounded-2xl shadow-lg hover:bg-slate-800 transition-all"
+              >
+                Back to Hub
+              </button>
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Active Minigame View
+  if (activeMinigame === 'audit') {
+    return (
+      <div className="animate-fade-in">
+        <button onClick={resetSelection} className="flex items-center text-slate-500 mb-6 hover:text-slate-900 font-bold transition-colors">
+          <ChevronLeft className="w-5 h-5 mr-1" /> Return to Menu
+        </button>
+        <AuditGame areaId="wp-1" areaName="Assembly Area A" onComplete={handleMinigameComplete} />
+      </div>
+    );
+  }
+
+  if (activeMinigame === 'ishikawa') {
+    return (
+      <div className="animate-fade-in">
+        <button onClick={resetSelection} className="flex items-center text-slate-500 mb-6 hover:text-slate-900 font-bold transition-colors">
+          <ChevronLeft className="w-5 h-5 mr-1" /> Return to Menu
+        </button>
+        <IshikawaGame problemId="prob-1" problemTitle="High Defect Rate in Painting" onComplete={handleMinigameComplete} />
+      </div>
+    );
+  }
+
+  if (activeMinigame === 'gemba') {
+    return (
+      <div className="animate-fade-in">
+        <button onClick={resetSelection} className="flex items-center text-slate-500 mb-6 hover:text-slate-900 font-bold transition-colors">
+          <ChevronLeft className="w-5 h-5 mr-1" /> Return to Menu
+        </button>
+        <GembaGame areaId="area-gemba" onComplete={handleMinigameComplete} />
+      </div>
+    );
+  }
+
+  // 3. Quest Detail View (AI Evaluation)
+  if (selectedQuest) {
+    return (
+      <div className="max-w-3xl mx-auto animate-fade-in pb-20">
+        <button 
+          onClick={() => setSelectedQuest(null)}
+          className="flex items-center text-slate-500 hover:text-slate-900 mb-6 transition-colors font-bold"
+        >
+          <ChevronLeft className="w-5 h-5 mr-1" /> Back to Quests
+        </button>
+
+        <div className="bg-white rounded-3xl p-10 border border-slate-200 shadow-sm mb-8 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-8 opacity-5">
+              <Award className="w-32 h-32 text-slate-900" />
+           </div>
+           <div className="flex justify-between items-start mb-6">
+              <div>
+                 <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-red-50 text-red-600 mb-4 inline-block border border-red-100`}>
+                   Quest: {selectedQuest.skillCode}
+                 </span>
+                 <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">{selectedQuest.title}</h1>
+              </div>
+              <div className="text-right">
+                 <p className="text-red-600 font-black text-3xl">+{selectedQuest.xpReward} XP</p>
+                 <span className={`text-[10px] font-bold uppercase px-3 py-1 rounded-full border mt-2 inline-block ${
+                    selectedQuest.difficulty === 'easy' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    selectedQuest.difficulty === 'medium' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                    'bg-red-50 text-red-700 border-red-200'
+                 }`}>
+                    {selectedQuest.difficulty} Difficulty
+                 </span>
+              </div>
+           </div>
+           <p className="text-slate-600 leading-relaxed text-lg mb-8">{selectedQuest.description}</p>
+           
+           <div className="bg-slate-900 border-l-8 border-red-600 p-6 rounded-r-3xl">
+              <p className="text-sm text-slate-300 flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-1" />
+                <span><strong>Sensei's Requirement:</strong> Submit your detailed Lean methodology steps below. Lean Sensei (Gemini AI) will evaluate your approach based on real-world industrial standards.</span>
+              </p>
+           </div>
+        </div>
+
+        <SubmissionStatus 
+          questId={selectedQuest.id} 
+          onComplete={handleQuestComplete} 
+        />
+      </div>
+    );
+  }
+
+  // 4. Default Hub Home View
+  return (
+    <div className="space-y-16 animate-fade-in pb-20">
+      {/* Hero Section */}
+      <div className="text-center space-y-4 max-w-2xl mx-auto">
+        <h1 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none">{t('hub.title')}</h1>
+        <p className="text-slate-500 text-lg leading-relaxed">{t('hub.subtitle')}</p>
+      </div>
+
+      {/* Simulation Minigames Selection */}
+      <section className="space-y-8">
+        <div className="flex items-center justify-between px-2">
+           <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center">
+             <Target className="w-8 h-8 mr-3 text-red-600" />
+             Training Simulations
+           </h3>
+           <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Mode</p>
+        </div>
+        <GameSelector onSelect={setActiveMinigame} unlockedLevel={level} />
+      </section>
+
+      {/* AI Specialized Quests Section */}
+      <section className="space-y-8">
+        <div className="flex items-center justify-between px-2">
+           <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center">
+             <Zap className="w-8 h-8 mr-3 text-amber-500" />
+             AI Specialized Quests
+           </h3>
+           <span className="bg-amber-100 text-amber-700 text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest border border-amber-200">
+             Evaluated by Gemini
+           </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           {loadingQuests ? (
+              Array.from({ length: 4 }).map((_, i) => <QuestCardSkeleton key={i} />)
+           ) : quests?.map(quest => (
+              <button 
+                key={quest.id}
+                onClick={() => setSelectedQuest(quest)}
+                className="bg-white p-8 rounded-[2rem] border-2 border-slate-100 hover:border-red-500 text-left transition-all group hover:shadow-2xl hover:-translate-y-1 flex flex-col"
+              >
+                 <div className="flex justify-between items-start mb-6">
+                    <div className="p-4 bg-slate-900 rounded-2xl group-hover:bg-red-600 text-white transition-colors shadow-lg">
+                       <Award className="w-8 h-8" />
+                    </div>
+                    <div className="text-right">
+                       <span className="text-xs font-black text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-100">+{quest.xpReward} XP</span>
+                    </div>
+                 </div>
+                 <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">{quest.title}</h4>
+                 <p className="text-slate-500 text-sm leading-relaxed mb-8 flex-1">{quest.description}</p>
+                 <div className="flex items-center justify-between pt-6 border-t border-slate-50">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Specialization: {quest.skillCode}</span>
+                    <div className="flex items-center text-xs font-black text-red-600 uppercase tracking-widest group-hover:gap-2 transition-all">
+                       Accept Quest <ChevronRight className="w-4 h-4" />
+                    </div>
+                 </div>
+              </button>
+           ))}
+           {!loadingQuests && quests?.length === 0 && (
+              <div className="col-span-full p-20 text-center bg-slate-50 rounded-[3rem] border border-dashed border-slate-200">
+                 <p className="text-slate-400 font-bold text-lg">No specialized quests available at your level. Complete simulations to level up!</p>
+              </div>
+           )}
+        </div>
+      </section>
+
+      {/* Real World Action CTA */}
+      <div className="bg-slate-900 rounded-[3rem] p-12 text-white shadow-2xl overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-red-600 rounded-full mix-blend-overlay filter blur-[100px] opacity-20 -mr-32 -mt-32 animate-pulse"></div>
+        
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 text-center md:text-left">
+          <div>
+            <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">Ready for Real World Action?</h2>
+            <p className="text-slate-400 text-lg max-w-xl">
+              Apply your Lean skills to actual manufacturing problems. Use Gemini Vision to scan workstations and generate real corrective actions.
+            </p>
+          </div>
           <button 
             onClick={() => onSelectGame(ViewState.GAME_AUDIT, true)}
-            className="bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-xl text-left transition-all group flex flex-col h-full hover:border-red-500/50"
+            className="bg-red-600 hover:bg-red-700 text-white px-12 py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-red-900/20 transition-all hover:scale-105 active:scale-95"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-red-600 p-2 rounded-lg">
-                <ScanLine className="w-6 h-6 text-white" />
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
-            </div>
-            <h3 className="font-bold text-lg mb-1">{t('hub.createRedTag')}</h3>
-            <p className="text-xs text-gray-400">{t('hub.createRedTagDesc')}</p>
+            Launch AR Scanner
           </button>
-
-          {/* Real World LPA */}
-          <button 
-            onClick={() => onSelectGame(ViewState.GAME_LPA, true)}
-            className="bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-xl text-left transition-all group flex flex-col h-full hover:border-purple-500/50"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-purple-600 p-2 rounded-lg">
-                <ShieldCheck className="w-6 h-6 text-white" />
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
-            </div>
-            <h3 className="font-bold text-lg mb-1">{t('hub.runLPA')}</h3>
-            <p className="text-xs text-gray-400">{t('hub.runLPADesc')}</p>
-          </button>
-
-          {/* Real World Problem Solver */}
-          <button 
-            onClick={() => onSelectGame(ViewState.GAME_ISHIKAWA, true)}
-            className="bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-xl text-left transition-all group flex flex-col h-full hover:border-emerald-500/50"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-emerald-600 p-2 rounded-lg">
-                <Zap className="w-6 h-6 text-white" />
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
-            </div>
-            <h3 className="font-bold text-lg mb-1">{t('hub.solveProblem')}</h3>
-            <p className="text-xs text-gray-400">{t('hub.solveProblemDesc')}</p>
-          </button>
-        </div>
-      </div>
-
-      {/* SECTION 2: TRAINING SIMULATIONS */}
-      <div>
-        <h3 className="text-xl font-bold text-gray-900 mb-4 ml-1">{t('hub.simulation')}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* 5S Audit Game Card */}
-          <div 
-            onClick={() => onSelectGame(ViewState.GAME_AUDIT, false)}
-            className="group relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-red-400 transition-all duration-300"
-          >
-            <div className="h-28 bg-red-700 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-red-900 opacity-90" />
-              <ClipboardCheck className="absolute bottom-4 right-4 text-white/20 w-24 h-24 transform rotate-12 group-hover:scale-110 transition-transform" />
-              <div className="absolute bottom-4 left-6 text-white">
-                <span className="bg-black/30 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold uppercase tracking-wide border border-white/20">Level 1</span>
-              </div>
-            </div>
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-2">{t('hub.virtualAudit')}</h3>
-              <p className="text-gray-500 text-sm mb-4">
-                {t('hub.virtualAuditDesc')}
-              </p>
-              <div className="flex items-center text-red-600 font-medium text-sm group-hover:translate-x-1 transition-transform">
-                {t('hub.start')} <ArrowRight className="w-4 h-4 ml-2" />
-              </div>
-            </div>
-          </div>
-
-          {/* LPA Game Card */}
-          <div 
-            onClick={() => onSelectGame(ViewState.GAME_LPA, false)}
-            className="group relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-purple-400 transition-all duration-300"
-          >
-            <div className="h-28 bg-purple-700 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-900 opacity-90" />
-              <ShieldCheck className="absolute bottom-4 right-4 text-white/20 w-24 h-24 transform -rotate-6 group-hover:scale-110 transition-transform" />
-              <div className="absolute bottom-4 left-6 text-white">
-                <span className="bg-black/30 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold uppercase tracking-wide border border-white/20">Level 1</span>
-              </div>
-            </div>
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-2">{t('hub.virtualLPA')}</h3>
-              <p className="text-gray-500 text-sm mb-4">
-                {t('hub.virtualLPADesc')}
-              </p>
-              <div className="flex items-center text-purple-600 font-medium text-sm group-hover:translate-x-1 transition-transform">
-                {t('hub.start')} <ArrowRight className="w-4 h-4 ml-2" />
-              </div>
-            </div>
-          </div>
-
-          {/* Ishikawa Game Card */}
-          <div 
-            onClick={() => onSelectGame(ViewState.GAME_ISHIKAWA, false)}
-            className="group relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-gray-400 transition-all duration-300"
-          >
-            <div className="h-28 bg-gray-700 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900 opacity-90" />
-              <GitBranch className="absolute bottom-4 right-4 text-white/20 w-24 h-24 transform -rotate-12 group-hover:scale-110 transition-transform" />
-              <div className="absolute bottom-4 left-6 text-white">
-                <span className="bg-black/30 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold uppercase tracking-wide border border-white/20">Level 2</span>
-              </div>
-            </div>
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-2">{t('hub.ishikawaSim')}</h3>
-              <p className="text-gray-500 text-sm mb-4">
-                {t('hub.ishikawaSimDesc')}
-              </p>
-              <div className="flex items-center text-gray-700 font-medium text-sm group-hover:translate-x-1 transition-transform">
-                {t('hub.start')} <ArrowRight className="w-4 h-4 ml-2" />
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

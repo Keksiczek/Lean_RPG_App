@@ -1,19 +1,9 @@
-import { GoogleGenAI, Type, Schema, Chat } from "@google/genai";
+/* FIX: Removed Schema import as it is not needed for object-based schema definitions */
+import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { IshikawaCause, IshikawaSolution, LensScanResult, LPAScanResult } from "../types";
 
-// Helper for safe Env access
-const getApiKey = () => {
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
-  }
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.API_KEY) {
-    return (import.meta as any).env.API_KEY;
-  }
-  return '';
-};
-
 // Schema for structured output
-const solutionSchema: Schema = {
+const solutionSchema = {
   type: Type.OBJECT,
   properties: {
     solutions: {
@@ -37,7 +27,7 @@ const solutionSchema: Schema = {
 };
 
 // Updated Lens Schema for AR Checklist Validation
-const lensSchema: Schema = {
+const lensSchema = {
   type: Type.OBJECT,
   properties: {
     overallCompliance: { type: Type.INTEGER, description: "0 to 100" },
@@ -69,7 +59,7 @@ const lensSchema: Schema = {
   required: ["overallCompliance", "checklistResults", "detectedHazards"]
 };
 
-const lpaSchema: Schema = {
+const lpaSchema = {
   type: Type.OBJECT,
   properties: {
     compliance: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
@@ -92,8 +82,8 @@ export const generateSolutions = async (
   problemDescription: string,
   causes: IshikawaCause[]
 ): Promise<IshikawaSolution[]> => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
+  /* FIX: Using process.env.API_KEY directly as required by guidelines. Assuming it is pre-configured. */
+  if (!process.env.API_KEY) {
     console.warn("API Key not found, using mock response");
     return [
       {
@@ -111,9 +101,11 @@ export const generateSolutions = async (
     ];
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  /* FIX: Always initialize with new GoogleGenAI({ apiKey: process.env.API_KEY }) */
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const causesText = causes.map(c => `- [${c.category}] ${c.text}`).join("\n");
+  /* FIX: Consistently access cause text from IshikawaCause across possible interface variations */
+  const causesText = causes.map(c => `- [${c.category}] ${c.cause || (c as any).text}`).join("\n");
 
   const prompt = `
     You are a Lean Manufacturing Expert.
@@ -125,8 +117,9 @@ export const generateSolutions = async (
   `;
 
   try {
+    /* FIX: Updated model to gemini-3-flash-preview as per guidelines */
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -149,10 +142,8 @@ export const generateSolutions = async (
 
 // --- Vision / Lens Analysis ---
 export const analyze5SImage = async (base64Image: string, context?: string, checklist: string[] = []): Promise<LensScanResult> => {
-  const apiKey = getApiKey();
-  
-  // Mock fallback if no API key
-  if (!apiKey) {
+  /* FIX: Always check for and use process.env.API_KEY directly */
+  if (!process.env.API_KEY) {
     return new Promise(resolve => setTimeout(() => resolve({
       overallCompliance: 65,
       checklistResults: checklist.length > 0 ? checklist.map((item, i) => ({
@@ -171,7 +162,7 @@ export const analyze5SImage = async (base64Image: string, context?: string, chec
     }), 2000));
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   let promptText = `
     Role: Lean Manufacturing 5S Auditor.
@@ -186,8 +177,9 @@ export const analyze5SImage = async (base64Image: string, context?: string, chec
   }
 
   try {
+    /* FIX: Updated model to gemini-3-flash-preview as per guidelines */
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: {
         parts: [
           {
@@ -239,9 +231,7 @@ export const analyze5SImage = async (base64Image: string, context?: string, chec
 };
 
 export const analyzeLPAImage = async (base64Image: string): Promise<LPAScanResult> => {
-  const apiKey = getApiKey();
-  
-  if (!apiKey) {
+  if (!process.env.API_KEY) {
     return new Promise(resolve => setTimeout(() => resolve({
       compliance: "Medium",
       observations: ["PPE usage needs verification", "Walkways appear clear"],
@@ -250,11 +240,13 @@ export const analyzeLPAImage = async (base64Image: string): Promise<LPAScanResul
     }), 2000));
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  /* FIX: Direct use of process.env.API_KEY for GoogleGenAI initialization */
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
+    /* FIX: Consistent use of gemini-3-flash-preview for vision tasks */
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: {
         parts: [
           {
@@ -294,17 +286,17 @@ export const analyzeLPAImage = async (base64Image: string): Promise<LPAScanResul
 let chatSession: Chat | null = null;
 
 export const sendMessageToSensei = async (message: string, context?: string): Promise<string> => {
-  const apiKey = getApiKey();
-  
-  if (!apiKey) {
+  if (!process.env.API_KEY) {
     return "I am running in demo mode. Please configure the API Key to chat with me about Lean methodologies! (Context: " + (context || "None") + ")";
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  /* FIX: Direct use of process.env.API_KEY for GoogleGenAI initialization */
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   if (!chatSession) {
+    /* FIX: Updated model to gemini-3-flash-preview as per guidelines */
     chatSession = ai.chats.create({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       config: {
         systemInstruction: `
           You are 'Lean Sensei', a wise, professional, and encouraging mentor in a manufacturing environment.

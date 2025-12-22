@@ -1,11 +1,12 @@
 import { apiClient } from './apiClient';
 import { ENDPOINTS } from '../config';
-import { ChecklistTemplate } from '../types';
+import { ChecklistTemplate, ApiResponse } from '../types';
 
 export const checklistService = {
   getTemplates: async (): Promise<ChecklistTemplate[]> => {
     try {
-      return await apiClient.get<ChecklistTemplate[]>(ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES);
+      const res = await apiClient.get<ApiResponse<ChecklistTemplate[]>>(ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES);
+      return res.data || [];
     } catch (e) {
       console.warn("Using mock templates");
       return mockTemplates;
@@ -14,26 +15,30 @@ export const checklistService = {
 
   getTemplateById: async (id: string): Promise<ChecklistTemplate | null> => {
     try {
-      return await apiClient.get<ChecklistTemplate>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`);
+      const res = await apiClient.get<ApiResponse<ChecklistTemplate>>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`);
+      return res.data || null;
     } catch (e) {
       return mockTemplates.find(t => t.id === id) || null;
     }
   },
 
   createTemplate: async (template: Partial<ChecklistTemplate>): Promise<ChecklistTemplate> => {
-    return await apiClient.post<ChecklistTemplate>(ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES, template);
+    const res = await apiClient.post<ApiResponse<ChecklistTemplate>>(ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES, template);
+    if (!res.success || !res.data) throw new Error(res.error);
+    return res.data;
   },
 
   updateTemplate: async (id: string, updates: Partial<ChecklistTemplate>): Promise<ChecklistTemplate> => {
-    return await apiClient.put<ChecklistTemplate>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`, updates);
+    const res = await apiClient.put<ApiResponse<ChecklistTemplate>>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`, updates);
+    if (!res.success || !res.data) throw new Error(res.error);
+    return res.data;
   },
 
   deleteTemplate: async (id: string): Promise<void> => {
-    return await apiClient.delete(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`);
+    await apiClient.delete(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`);
   },
 
   cloneTemplate: async (id: string): Promise<ChecklistTemplate> => {
-    // In real API: POST /api/audits/checklist-templates/:id/clone
     const template = mockTemplates.find(t => t.id === id);
     if (!template) throw new Error("Template not found");
     const newTemplate = {
@@ -49,7 +54,9 @@ export const checklistService = {
   },
 
   publishTemplate: async (id: string, isPublished: boolean): Promise<ChecklistTemplate> => {
-    return await apiClient.put<ChecklistTemplate>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`, { isPublished });
+    const res = await apiClient.put<ApiResponse<ChecklistTemplate>>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`, { isPublished });
+    if (!res.success || !res.data) throw new Error(res.error);
+    return res.data;
   }
 };
 

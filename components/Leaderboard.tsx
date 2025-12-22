@@ -1,164 +1,132 @@
-import React, { useEffect, useState } from 'react';
-import { LeaderboardEntry, Player } from '../types';
-import { gameService } from '../services/gameService';
-import { useLanguage } from '../contexts/LanguageContext';
-import { Trophy, Medal, Crown, User, Star } from 'lucide-react';
+import React, { useState } from 'react';
+import { LeaderboardEntry } from '../types';
+import { useFetch } from '../hooks/useApi';
+import { ENDPOINTS } from '../config';
+import { Trophy, Medal, Crown, TrendingUp, Filter, Loader2, User } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import LeaderboardSkeleton from './skeletons/LeaderboardSkeleton';
+import ApiError from './ui/ApiError';
 
 interface LeaderboardProps {
-  currentUser: Player;
+  initialSkill?: string;
 }
 
-const Leaderboard: React.FC<LeaderboardProps> = ({ currentUser }) => {
-  const { t } = useLanguage();
-  const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+const Leaderboard: React.FC<LeaderboardProps> = ({ initialSkill }) => {
+  const { user } = useAuth();
+  const [filter, setFilter] = useState<string>(initialSkill || 'trending');
+  
+  const endpoint = filter === 'trending' 
+    ? ENDPOINTS.GAMIFICATION.LEADERBOARD_TRENDING 
+    : ENDPOINTS.GAMIFICATION.LEADERBOARD_SKILL(filter);
 
-  useEffect(() => {
-    const fetchRankings = async () => {
-      setLoading(true);
-      try {
-        const data = await gameService.getLeaderboard();
-        // Dynamically update 'You' in mock data to reflect current user stats
-        const updatedData = data.map(entry => {
-            if (entry.id === currentUser.id || (entry.id as any) === 'u1') { // Match mock ID or real ID
-                return {
-                    ...entry,
-                    id: currentUser.id,
-                    username: `${currentUser.username} (You)`,
-                    level: currentUser.level,
-                    totalXp: currentUser.totalXp,
-                    totalScore: currentUser.totalScore
-                }
-            }
-            return entry;
-        }).sort((a, b) => b.totalScore - a.totalScore)
-          .map((entry, index) => ({ ...entry, rank: index + 1 })); // Recalculate rank
-
-        setRankings(updatedData);
-      } catch (e) {
-        console.error("Failed to load leaderboard", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRankings();
-  }, [currentUser]);
+  const { data: rankings, loading, error, refetch } = useFetch<LeaderboardEntry[]>(endpoint);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
-      case 1: return <Crown className="w-6 h-6 text-yellow-500" fill="currentColor" />;
-      case 2: return <Medal className="w-6 h-6 text-slate-400" fill="currentColor" />;
-      case 3: return <Medal className="w-6 h-6 text-amber-700" fill="currentColor" />;
-      default: return <span className="text-slate-500 font-bold w-6 text-center">{rank}</span>;
+      case 1: return <Crown className="w-6 h-6 text-yellow-500 drop-shadow-md" fill="currentColor" />;
+      case 2: return <Medal className="w-6 h-6 text-slate-400 drop-shadow-md" fill="currentColor" />;
+      case 3: return <Medal className="w-6 h-6 text-amber-700 drop-shadow-md" fill="currentColor" />;
+      default: return <span className="text-gray-400 dark:text-slate-500 font-bold w-6 text-center">{rank}</span>;
     }
   };
 
-  const getRankBg = (rank: number) => {
-      switch (rank) {
-          case 1: return 'bg-yellow-50 border-yellow-200';
-          case 2: return 'bg-slate-50 border-slate-200';
-          case 3: return 'bg-orange-50 border-orange-200';
-          default: return 'bg-white border-slate-100';
-      }
+  const getTopThreeStyle = (rank: number) => {
+    switch (rank) {
+      case 1: return 'border-yellow-200 dark:border-yellow-900/50 bg-yellow-50 dark:bg-yellow-900/10 shadow-yellow-100 dark:shadow-none';
+      case 2: return 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 shadow-slate-100 dark:shadow-none';
+      case 3: return 'border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-900/10 shadow-orange-100 dark:shadow-none';
+      default: return 'border-transparent bg-white dark:bg-slate-900';
+    }
   };
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-           <h1 className="text-2xl font-bold text-slate-900">{t('leaderboard.title')}</h1>
-           <p className="text-slate-500">{t('leaderboard.subtitle')}</p>
+           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center">
+             <Trophy className="w-6 h-6 mr-2 text-amber-500" />
+             Hall of Fame
+           </h1>
+           <p className="text-slate-500 dark:text-slate-400">Global rankings and top performers.</p>
         </div>
-        <div className="mt-4 md:mt-0 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center">
-            <User className="w-4 h-4 text-slate-400 mr-2" />
-            <span className="text-sm text-slate-600 mr-1">{t('leaderboard.rank')}:</span>
-            <span className="font-bold text-slate-800">#{rankings.find(r => r.id === currentUser.id)?.rank || '-'}</span>
+
+        <div className="flex items-center space-x-3 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-initial">
+            <Filter className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="pl-10 pr-4 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-red-500 outline-none w-full text-slate-700 dark:text-slate-300"
+            >
+              <option value="trending">🔥 Trending Now</option>
+              <option value="5s">🧹 5S Specialist</option>
+              <option value="lpa">📋 LPA Guardian</option>
+              <option value="kaizen">🚀 Kaizen Master</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Top 3 Podium (Visual) */}
-      {!loading && rankings.length >= 3 && (
-        <div className="grid grid-cols-3 gap-4 mb-8 items-end max-w-2xl mx-auto h-48">
-            {/* 2nd Place */}
-            <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-slate-200 border-4 border-white shadow-lg flex items-center justify-center mb-[-20px] z-10 relative">
-                    <span className="text-xl font-bold text-slate-600">2</span>
-                </div>
-                <div className="w-full bg-slate-100 h-24 rounded-t-xl border-t border-x border-slate-200 flex flex-col items-center justify-center pt-6 shadow-sm">
-                    <p className="font-bold text-slate-700 text-sm truncate w-full text-center px-2">{rankings[1].username}</p>
-                    <p className="text-xs text-slate-500">{rankings[1].totalScore} pts</p>
-                </div>
-            </div>
-
-            {/* 1st Place */}
-            <div className="flex flex-col items-center z-20">
-                <Crown className="w-8 h-8 text-yellow-500 mb-2 animate-bounce" fill="currentColor" />
-                <div className="w-20 h-20 rounded-full bg-yellow-100 border-4 border-white shadow-xl flex items-center justify-center mb-[-25px] z-10 relative">
-                     <span className="text-2xl font-bold text-yellow-600">1</span>
-                </div>
-                <div className="w-full bg-gradient-to-b from-yellow-50 to-white h-32 rounded-t-xl border-t border-x border-yellow-200 flex flex-col items-center justify-center pt-8 shadow-md">
-                     <p className="font-bold text-slate-800 text-base truncate w-full text-center px-2">{rankings[0].username}</p>
-                     <p className="text-xs text-yellow-600 font-bold">{rankings[0].totalScore} pts</p>
-                </div>
-            </div>
-
-            {/* 3rd Place */}
-            <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-orange-100 border-4 border-white shadow-lg flex items-center justify-center mb-[-20px] z-10 relative">
-                     <span className="text-xl font-bold text-orange-700">3</span>
-                </div>
-                <div className="w-full bg-orange-50 h-20 rounded-t-xl border-t border-x border-orange-200 flex flex-col items-center justify-center pt-6 shadow-sm">
-                     <p className="font-bold text-slate-700 text-sm truncate w-full text-center px-2">{rankings[2].username}</p>
-                     <p className="text-xs text-slate-500">{rankings[2].totalScore} pts</p>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* List */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex text-xs font-bold text-slate-500 uppercase tracking-wider">
-            <div className="w-16 text-center">{t('leaderboard.rank')}</div>
-            <div className="flex-1">{t('leaderboard.player')}</div>
-            <div className="w-24 text-center">{t('leaderboard.level')}</div>
-            <div className="w-24 text-right pr-4">{t('leaderboard.score')}</div>
-        </div>
-        
-        {loading ? (
-             <div className="p-8 text-center text-slate-400">Loading rankings...</div>
-        ) : (
-            <div className="divide-y divide-slate-100">
-                {rankings.map((entry) => (
+      {loading ? (
+        <LeaderboardSkeleton rows={10} />
+      ) : error ? (
+        <ApiError error={error} onRetry={refetch} />
+      ) : (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+              <div className="w-16 text-center">Rank</div>
+              <div className="flex-1">Specialist</div>
+              <div className="w-24 text-center">Level</div>
+              <div className="w-24 text-right pr-4">Total XP</div>
+          </div>
+          
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {rankings?.map((entry) => {
+                  const isMe = entry.userId === user?.id;
+                  const isTopThree = entry.rank <= 3;
+                  
+                  return (
                     <div 
-                        key={entry.id} 
-                        className={`flex items-center p-4 hover:bg-slate-50 transition-colors ${entry.id === currentUser.id ? 'bg-blue-50/50' : ''}`}
+                        key={entry.userId} 
+                        className={`flex items-center p-4 transition-colors ${
+                          isMe ? 'bg-red-50 dark:bg-red-900/10 ring-1 ring-inset ring-red-100 dark:ring-red-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                        } ${isTopThree ? getTopThreeStyle(entry.rank) : ''}`}
                     >
                         <div className="w-16 flex justify-center">
                             {getRankIcon(entry.rank)}
                         </div>
                         <div className="flex-1 flex items-center">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 font-bold text-xs ${getRankBg(entry.rank)}`}>
-                                {entry.username.charAt(0)}
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 font-bold shadow-inner ${
+                                entry.rank === 1 ? 'bg-yellow-200 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-400' : 
+                                isMe ? 'bg-red-200 dark:bg-red-900/50 text-red-800 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                            }`}>
+                                {entry.userName.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                                <p className={`text-sm font-bold ${entry.id === currentUser.id ? 'text-blue-700' : 'text-slate-800'}`}>
-                                    {entry.username}
+                                <p className={`text-sm font-bold ${isMe ? 'text-red-700 dark:text-red-400' : 'text-slate-800 dark:text-slate-100'}`}>
+                                    {entry.userName} {isMe && <span className="text-[10px] font-black ml-1 text-red-400 uppercase tracking-tighter">(YOU)</span>}
                                 </p>
-                                <p className="text-xs text-slate-400">{t('leaderboard.xp')}: {entry.totalXp}</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold tracking-tight">Active Specialist</p>
                             </div>
                         </div>
-                        <div className="w-24 text-center text-sm font-medium text-slate-600">
-                            Lvl {entry.level}
+                        <div className="w-24 text-center">
+                           <span className="text-xs font-black bg-gray-900 dark:bg-slate-700 text-white px-2 py-0.5 rounded">Lvl {entry.level}</span>
                         </div>
-                        <div className="w-24 text-right pr-4 font-bold text-slate-800 font-mono">
-                            {entry.totalScore.toLocaleString()}
+                        <div className="w-24 text-right pr-4">
+                            <p className="font-mono font-bold text-slate-700 dark:text-slate-300">{entry.xp.toLocaleString()}</p>
                         </div>
                     </div>
-                ))}
+                  );
+              })}
+          </div>
+          
+          {rankings?.length === 0 && (
+            <div className="p-12 text-center text-slate-400 dark:text-slate-600 italic">
+               No rankings found for this category.
             </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

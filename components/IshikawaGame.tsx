@@ -23,7 +23,6 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
   const [phase, setPhase] = useState<'problem' | 'custom_input' | 'analysis' | 'solutions'>('problem');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Custom Problem State
   const [customTitle, setCustomTitle] = useState('');
   const [customDesc, setCustomDesc] = useState('');
 
@@ -33,7 +32,6 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
     }
   }, [isRealWorldStart]);
 
-  // Logic
   const startCustomProblem = () => {
     if (!customTitle) return;
     const newProblem: IshikawaProblem = {
@@ -52,14 +50,15 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
     if (!causeText.trim()) return;
     const newCause: IshikawaCause = {
       id: Math.random().toString(36).substr(2, 9),
-      category: currentCategory,
-      text: causeText.trim()
+      category: currentCategory as any,
+      cause: causeText.trim(),
+      isRootCause: false
     };
     setCauses([...causes, newCause]);
     setCauseText('');
   };
 
-  const removeCause = (id: string) => {
+  const removeCause = (id?: string) => {
     setCauses(causes.filter(c => c.id !== id));
   };
 
@@ -71,7 +70,9 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
     
     setIsGenerating(true);
     try {
-      const generatedSolutions = await generateSolutions(selectedProblem!.title, selectedProblem!.description, causes);
+      // Map back to gemini service expectations (text field)
+      const mappedCauses = causes.map(c => ({ ...c, text: c.cause }));
+      const generatedSolutions = await generateSolutions(selectedProblem!.title, selectedProblem!.description, mappedCauses as any);
       setSolutions(generatedSolutions);
       setPhase('solutions');
     } catch (error) {
@@ -85,7 +86,7 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
     if (!user || !selectedProblem) return;
     setIsSaving(true);
     
-    const xp = selectedProblem?.isRealWorld ? 500 : (300 + (causes.length * 10)); // Higher reward for real world
+    const xp = selectedProblem?.isRealWorld ? 500 : (300 + (causes.length * 10));
     const score = 100;
 
     try {
@@ -95,7 +96,7 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
         xp,
         causes,
         solutions,
-        user.id
+        user.id.toString()
       );
       onComplete(xp, score, `Ishikawa: ${selectedProblem.title}`);
     } catch (e) {
@@ -104,9 +105,81 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
     }
   };
 
-  // ... [Views for Input, Selection, Analysis - logic mostly same] ...
+  if (phase === 'problem') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex justify-between items-center">
+          <button onClick={onExit} className="flex items-center text-slate-500 hover:text-slate-800">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Hub
+          </button>
+          <button 
+            onClick={() => setPhase('custom_input')}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold shadow-md hover:bg-purple-700 flex items-center transition-all"
+          >
+            <PenTool className="w-4 h-4 mr-2" />
+            Analyze Custom Problem
+          </button>
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800">Select Root Cause Challenge</h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          {ISHIKAWA_PROBLEMS.map(prob => (
+            <div 
+              key={prob.id}
+              onClick={() => { setSelectedProblem(prob); setPhase('analysis'); }}
+              className="bg-white p-6 rounded-xl border border-slate-200 cursor-pointer hover:border-purple-500 hover:shadow-md transition-all"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="font-bold text-lg text-slate-800">{prob.title}</h3>
+                <span className="text-xs px-2 py-1 rounded font-semibold uppercase bg-purple-100 text-purple-700">
+                  {prob.category}
+                </span>
+              </div>
+              <p className="text-slate-500 text-sm">{prob.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  // VIEW: SOLUTIONS REPORT (This needs the updated Finish button)
+  if (phase === 'custom_input') {
+     return (
+        <div className="max-w-xl mx-auto bg-white p-8 rounded-2xl shadow-xl animate-fade-in">
+            <h2 className="text-2xl font-bold text-slate-800 mb-6">Describe Workplace Problem</h2>
+            <div className="space-y-4">
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Problem Title</label>
+                    <input 
+                        value={customTitle}
+                        onChange={e => setCustomTitle(e.target.value)}
+                        placeholder="e.g. Scratches on Door Panels"
+                        className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Context / Impact</label>
+                    <textarea 
+                        value={customDesc}
+                        onChange={e => setCustomDesc(e.target.value)}
+                        placeholder="Describe what is happening and the impact..."
+                        className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none h-32 resize-none"
+                    />
+                </div>
+                <div className="flex gap-3 pt-4">
+                    <button onClick={() => setPhase('problem')} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition-colors">Cancel</button>
+                    <button 
+                        onClick={startCustomProblem}
+                        disabled={!customTitle}
+                        className="flex-1 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 shadow-lg shadow-purple-500/20"
+                    >
+                        Start Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+     );
+  }
+
   if (phase === 'solutions') {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -116,55 +189,37 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
             <h2 className="text-xl font-bold text-emerald-800">Countermeasures Generated</h2>
             <p className="text-emerald-700 text-sm mt-1">
               {selectedProblem?.isRealWorld 
-                ? "Here are AI suggestions for your actual workplace problem. Review them with your team."
+                ? "Here are AI suggestions for your actual workplace problem."
                 : "Simulation complete. Here are the recommended solutions."}
             </p>
           </div>
         </div>
-
         <div className="grid gap-6 md:grid-cols-3">
           {solutions.map((sol, idx) => (
             <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <div className="flex justify-between items-start mb-4">
-                <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
-                  sol.priority === 'High' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {sol.priority} Priority
-                </span>
-                <span className="text-slate-300 font-bold text-4xl opacity-20">0{idx+1}</span>
-              </div>
-              <h3 className="font-bold text-lg text-slate-800 mb-2">{sol.title}</h3>
+              <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${sol.priority === 'High' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                {sol.priority} Priority
+              </span>
+              <h3 className="font-bold text-lg text-slate-800 my-2">{sol.title}</h3>
               <p className="text-slate-600 text-sm mb-4">{sol.description}</p>
-              
-              <div className="bg-slate-50 p-4 rounded-lg">
-                <p className="text-xs font-bold text-slate-500 uppercase mb-2">Implementation Steps</p>
-                <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
-                  {sol.steps.map((step, sIdx) => <li key={sIdx}>{step}</li>)}
-                </ul>
-              </div>
+              <ul className="list-disc list-inside text-sm text-slate-600 space-y-1 bg-slate-50 p-3 rounded-lg">
+                {sol.steps.map((step, sIdx) => <li key={sIdx}>{step}</li>)}
+              </ul>
             </div>
           ))}
         </div>
-
         <div className="flex justify-end">
-          <button 
-            onClick={finishGame} 
-            disabled={isSaving}
-            className="bg-slate-900 text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors flex items-center disabled:opacity-50"
-          >
-            {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            {selectedProblem?.isRealWorld ? 'Save to Dashboard' : 'Complete Simulation'} 
-            {!isSaving && <ChevronRight className="w-4 h-4 ml-2" />}
+          <button onClick={finishGame} disabled={isSaving} className="bg-slate-900 text-white px-8 py-3 rounded-lg font-bold flex items-center disabled:opacity-50 transition-all">
+            {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Finish Analysis <ChevronRight className="w-4 h-4 ml-2" />
           </button>
         </div>
       </div>
     );
   }
 
-  // Fallback for Analysis View
   return (
     <div className="h-[calc(100vh-140px)] flex flex-col space-y-4 animate-fade-in">
-        {/* Same as before... */}
       <div className="flex items-center justify-between">
          <div>
           <h2 className="text-xl font-bold text-slate-800 flex items-center">
@@ -173,95 +228,75 @@ const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete, onExit, isRealW
           </h2>
           <p className="text-sm text-slate-500 truncate max-w-xl">{selectedProblem?.description}</p>
          </div>
-         <div className="text-right">
-           <p className="text-xs text-slate-400 uppercase font-bold">Causes Identified</p>
-           <p className="text-2xl font-bold text-slate-800">{causes.length}</p>
-         </div>
       </div>
-
       <div className="flex-1 flex gap-6 overflow-hidden flex-col md:flex-row">
-        {/* Cause Builder Panel */}
         <div className="w-full md:w-1/3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="font-bold text-slate-700 mb-4">Add Root Cause</h3>
-          
           <div className="space-y-4 flex-1">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Category (6M)</label>
-              <div className="grid grid-cols-3 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {ISHIKAWA_CATEGORIES.map(cat => (
                   <button
                     key={cat}
-                    onClick={() => setCurrentCategory(cat)}
-                    className={`text-[10px] md:text-xs py-2 px-1 rounded border transition-all truncate ${
-                      currentCategory === cat 
-                        ? 'bg-purple-600 text-white border-purple-600' 
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
+                    onClick={() => setCurrentCategory(cat as any)}
+                    className={`text-xs py-2 px-1 rounded border transition-all truncate ${currentCategory === cat ? 'bg-purple-600 text-white border-purple-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
                   >
                     {cat}
                   </button>
                 ))}
               </div>
             </div>
-
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Observation</label>
               <textarea
                 value={causeText}
                 onChange={(e) => setCauseText(e.target.value)}
                 placeholder="Describe the potential cause..."
-                className="w-full p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none h-24 md:h-32"
+                className="w-full p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-purple-500 outline-none h-32 resize-none"
               />
             </div>
-
             <button
               onClick={addCause}
               disabled={!causeText.trim()}
-              className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center justify-center"
+              className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center justify-center"
             >
               <Plus className="w-4 h-4 mr-2" /> Add to Diagram
             </button>
           </div>
         </div>
-
-        {/* Diagram Visualization Panel */}
         <div className="w-full md:w-2/3 bg-slate-50 p-6 rounded-xl border border-slate-200 overflow-y-auto relative">
           <div className="absolute top-4 right-4 z-10">
             <button
               onClick={handleGenerate}
               disabled={isGenerating || causes.length < 3}
-              className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center"
+              className="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-purple-700 disabled:opacity-50 transition-all flex items-center"
             >
               {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BrainCircuit className="w-4 h-4 mr-2" />}
-              {isGenerating ? 'Analyzing...' : 'Generate Solutions'}
+              Generate Solutions
             </button>
           </div>
-
           <h3 className="font-bold text-slate-400 uppercase tracking-wider text-sm mb-6">Ishikawa Diagram</h3>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {ISHIKAWA_CATEGORIES.map(category => {
-              const categoryCauses = causes.filter(c => c.category === category);
-              return (
-                <div key={category} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm min-h-[100px]">
-                  <h4 className="text-xs font-bold text-purple-600 uppercase mb-3 pb-2 border-b border-slate-100">{category}</h4>
-                  <ul className="space-y-2">
-                    {categoryCauses.length === 0 ? (
-                      <li className="text-xs text-slate-300 italic">No causes added</li>
-                    ) : (
-                      categoryCauses.map(cause => (
-                        <li key={cause.id} className="text-sm text-slate-700 flex justify-between items-start group">
-                          <span>• {cause.text}</span>
-                          <button onClick={() => removeCause(cause.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              );
-            })}
+            {ISHIKAWA_CATEGORIES.map(category => (
+              <div key={category} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm min-h-[100px]">
+                <h4 className="text-xs font-bold text-purple-600 uppercase mb-3 pb-2 border-b border-slate-100">{category}</h4>
+                <ul className="space-y-2">
+                  {causes.filter(c => c.category === category).length === 0 ? (
+                    <li className="text-xs text-slate-300 italic">No causes added</li>
+                  ) : (
+                    causes.filter(c => c.category === category).map(cause => (
+                      <li key={cause.id} className="text-sm text-slate-700 flex justify-between items-start group">
+                        <span>• {cause.cause}</span>
+                        <button onClick={() => removeCause(cause.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </div>

@@ -9,6 +9,16 @@
     <style>
       body { font-family: 'Inter', sans-serif; }
     </style>
+    <script>
+      (function() {
+        const theme = localStorage.getItem('lean-rpg-theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
   <script type="importmap">
 {
   "imports": {
@@ -31,7 +41,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-100 text-gray-900">
+  <body class="bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-slate-100 transition-colors duration-200">
     <div id="root"></div>
   </body>
 </html>

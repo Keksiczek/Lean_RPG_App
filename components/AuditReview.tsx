@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AuditSession, AuditFinding } from '../types';
 import { auditService } from '../services/auditService';
@@ -23,10 +24,12 @@ const AuditReview: React.FC<AuditReviewProps> = ({ audit, onClose, onProcessed }
       // Auto-create Red Tags for Critical/Major findings
       for (const finding of audit.findings) {
         if (finding.severity === 'Critical' || finding.severity === 'Major') {
+          // Fix: Added missing required 'category' property
           await gameService.createTask({
             title: `Audit Finding: ${finding.description}`,
             description: `Auto-generated from Audit ${audit.id}. Severity: ${finding.severity}`,
             priority: finding.severity === 'Critical' ? 'high' : 'medium',
+            category: '5S', // Added missing category
             status: 'open',
             source: '5S Red Tag',
             workplaceId: audit.workplaceId

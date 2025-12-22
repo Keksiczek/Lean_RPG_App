@@ -7,19 +7,27 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      body { font-family: 'Inter', sans-serif; }
+      body { 
+        font-family: 'Inter', sans-serif; 
+        transition: background-color 0.2s ease, color 0.2s ease;
+      }
+      /* Plynulý přechod pro všechny dark mode změny */
+      .dark body { background-color: #020617; } /* slate-950 */
     </style>
     <script>
       (function() {
-        const theme = localStorage.getItem('lean-rpg-theme');
-        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+        try {
+          const theme = localStorage.getItem('lean-rpg-theme');
+          const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (theme === 'dark' || (!theme && supportDarkMode)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
       })();
     </script>
-  <script type="importmap">
+    <script type="importmap">
 {
   "imports": {
     "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
@@ -28,20 +36,21 @@
     "react": "https://esm.sh/react@^19.2.1",
     "recharts": "https://esm.sh/recharts@^3.5.1",
     "lucide-react": "https://esm.sh/lucide-react@^0.560.0",
-    "@prisma/client": "https://esm.sh/@prisma/client@^7.1.0",
     "zod": "https://esm.sh/zod@^4.1.13",
-    "express": "https://esm.sh/express@^5.2.1",
     "dotenv": "https://esm.sh/dotenv@^17.2.3",
-    "jsonwebtoken": "https://esm.sh/jsonwebtoken@^9.0.3",
     "helmet": "https://esm.sh/helmet@^8.1.0",
+    "@prisma/client": "https://esm.sh/@prisma/client@^7.2.0",
     "cors": "https://esm.sh/cors@^2.8.5",
-    "winston": "https://esm.sh/winston@^3.19.0",
-    "express-async-errors": "https://esm.sh/express-async-errors@^3.1.1"
+    "express": "https://esm.sh/express@^5.2.1",
+    "jsonwebtoken": "https://esm.sh/jsonwebtoken@^9.0.3",
+    "express-async-errors": "https://esm.sh/express-async-errors@^3.1.1",
+    "winston": "https://esm.sh/winston@^3.19.0"
   }
 }
 </script>
-</head>
-  <body class="bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-slate-100 transition-colors duration-200">
+  </head>
+  <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
     <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>

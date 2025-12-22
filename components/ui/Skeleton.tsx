@@ -15,7 +15,7 @@ const Skeleton: React.FC<SkeletonProps> = ({
   className = '', 
   animate = true 
 }) => {
-  const baseClasses = 'bg-gray-200 dark:bg-slate-800';
+  const baseClasses = 'bg-slate-200 dark:bg-slate-800/80';
   const animationClass = animate ? 'animate-pulse' : '';
   
   let variantClasses = '';

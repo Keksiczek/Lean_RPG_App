@@ -281,7 +281,7 @@ const GameHub: React.FC<GameHubProps> = ({ onSelectGame, level }) => {
             onClick={() => onSelectGame(ViewState.GAME_AUDIT, true)}
             className="bg-red-600 hover:bg-red-700 text-white px-12 py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-red-900/20 transition-all hover:scale-105 active:scale-95"
           >
-            Launch AR Scanner
+            Real World 5S Audit
           </button>
         </div>
       </div>

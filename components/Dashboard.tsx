@@ -1,195 +1,219 @@
+
 import React from 'react';
-import { Player, LeaderboardEntry } from '../types';
+import { Player, LeaderboardEntry, ViewState, UserRole } from '../types';
 import { AVAILABLE_ACHIEVEMENTS } from '../constants';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Trophy, Target, TrendingUp, Clock, Lock, Users, ChevronRight, Zap } from 'lucide-react';
+import { Trophy, Target, TrendingUp, Clock, Lock, Users, ChevronRight, Zap, ArrowUpRight } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useFetch } from '../hooks/useApi';
 import { useTheme } from '../contexts/ThemeContext';
 import { ENDPOINTS } from '../config';
 import DashboardSkeleton from './skeletons/DashboardSkeleton';
-import Skeleton from './ui/Skeleton';
-import ApiError from './ui/ApiError';
-import ErrorBoundary from './ErrorBoundary';
-import XPCounter from './animations/XPCounter';
-import PulseIcon from './animations/PulseIcon';
+import { cn } from '../utils/themeColors';
 
 interface DashboardProps {
   player: Player | null;
   loading?: boolean;
+  onNavigate: (view: ViewState) => void;
 }
 
-const StatCard = ({ title, value, previousValue, icon: Icon, color, isXP = false }: any) => (
-  <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 flex items-center md:block space-x-4 md:space-x-0 border-l-4" style={{borderLeftColor: color.includes('red') ? '#DC2626' : color.includes('gray') ? '#4B5563' : '#1F2937'}}>
-    <div className={`p-3 rounded-lg ${color} bg-opacity-10 dark:bg-opacity-20 md:mb-4 shrink-0`}>
-      <PulseIcon icon={<Icon className={`w-5 h-5 md:w-6 md:h-6 ${color.replace('bg-', 'text-')}`} />} color={color} active={isXP} />
-    </div>
-    <div>
-      <h3 className="text-xs md:text-sm font-medium text-gray-500 dark:text-slate-400">{title}</h3>
-      {isXP ? (
-        <XPCounter value={value} previousValue={previousValue} className="text-xl md:text-2xl font-bold text-gray-800 dark:text-slate-100" />
-      ) : (
-        <p className="text-xl md:text-2xl font-bold text-gray-800 dark:text-slate-100">{value}</p>
-      )}
-    </div>
-  </div>
-);
-
-const AchievementCard: React.FC<{ achievement: any; locked: boolean }> = ({ achievement, locked }) => {
-  const IconComponent = (Icons as any)[achievement.icon] || Trophy;
+const StatCard = ({ title, value, icon: Icon, color, trend, onClick }: any) => {
   return (
-    <div className={`min-w-[140px] md:min-w-[160px] p-4 rounded-xl border flex flex-col items-center text-center transition-all ${
-      locked 
-        ? 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 opacity-60 grayscale' 
-        : 'bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-900/50 shadow-sm ring-1 ring-amber-100 dark:ring-amber-900/20 hover:scale-105'
-    }`}>
-      <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
-        locked ? 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-500'
-      }`}>
-        {locked ? <Lock className="w-5 h-5" /> : <IconComponent className="w-6 h-6 animate-bounce" />}
+    <button 
+      onClick={onClick}
+      className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 group hover:border-red-500/50 hover:shadow-xl hover:-translate-y-1 transition-all text-left w-full focus:outline-none focus:ring-2 focus:ring-red-500/20"
+    >
+      <div className="flex justify-between items-start mb-3">
+        <div className={cn("p-2.5 rounded-xl bg-opacity-10 dark:bg-opacity-20", color)}>
+          <Icon className={cn("w-5 h-5", color.replace('bg-', 'text-'))} />
+        </div>
+        {trend && (
+          <span className="flex items-center text-[10px] font-black text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">
+            <ArrowUpRight className="w-3 h-3 mr-0.5" /> {trend}
+          </span>
+        )}
       </div>
-      <h4 className="font-bold text-sm text-gray-800 dark:text-slate-100 mb-1 line-clamp-1">{achievement.title}</h4>
-      <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-2">{achievement.description}</p>
-    </div>
+      <div>
+        <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{title}</h3>
+        <p className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{value}</p>
+      </div>
+    </button>
   );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ player, loading }) => {
+const Dashboard: React.FC<DashboardProps> = ({ player, loading, onNavigate }) => {
   const { t } = useLanguage();
   const { resolvedTheme } = useTheme();
-  const { data: leaderboardData, loading: loadingLeaderboard, error: leaderboardError, refetch: refetchLeaderboard } = useFetch<LeaderboardEntry[]>(ENDPOINTS.GAMIFICATION.LEADERBOARD_TRENDING);
+  const { data: leaderboardData } = useFetch<LeaderboardEntry[]>(ENDPOINTS.GAMIFICATION.LEADERBOARD_TRENDING);
 
-  if (loading || !player) {
-    return <DashboardSkeleton />;
-  }
+  if (loading || !player) return <DashboardSkeleton />;
 
   const chartData = player.recentActivity.length > 0 
-    ? player.recentActivity.map((a, i) => ({ name: `${t('dashboard.game')} ${i+1}`, score: a.score }))
-    : [{name: 'Start', score: 0}, {name: 'Now', score: 0}];
+    ? player.recentActivity.map((a, i) => ({ name: `G${i+1}`, score: a.score }))
+    : [{name: '0', score: 0}, {name: '1', score: 10}];
 
-  const isDark = resolvedTheme === 'dark';
+  const isManager = player.role === UserRole.TEAM_LEADER || player.role === UserRole.CI_SPECIALIST || player.role === UserRole.ADMIN;
 
   return (
-    <div className="space-y-6 animate-fade-in pb-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{t('dashboard.title')}</h1>
-          <p className="text-gray-500 dark:text-slate-400">{t('dashboard.welcome')}</p>
-        </div>
+    <div className="space-y-8 animate-fade-in">
+      <header>
+        <h1 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{t('dashboard.title')}</h1>
+        <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">{t('dashboard.welcome')}</p>
+      </header>
+
+      {/* Interaktivní Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard 
+          title={t('dashboard.totalXp')} 
+          value={player.totalXp.toLocaleString()} 
+          icon={Zap} 
+          color="bg-amber-500" 
+          trend="+12%"
+          onClick={() => onNavigate(ViewState.LEADERBOARD)}
+        />
+        <StatCard 
+          title={t('dashboard.level')} 
+          value={player.level} 
+          icon={Trophy} 
+          color="bg-red-600"
+          onClick={() => onNavigate(ViewState.SKILLS)}
+        />
+        <StatCard 
+          title={t('dashboard.completed')} 
+          value={player.gamesCompleted} 
+          icon={Target} 
+          color="bg-blue-600" 
+          trend="New"
+          onClick={() => onNavigate(ViewState.GAME_HUB)}
+        />
+        <StatCard 
+          title={t('dashboard.avgScore')} 
+          value={`${player.gamesCompleted > 0 ? Math.round(player.totalScore / player.gamesCompleted) : 0}%`} 
+          icon={TrendingUp} 
+          color="bg-emerald-600"
+          onClick={() => isManager ? onNavigate(ViewState.COMPLIANCE_DASHBOARD) : onNavigate(ViewState.GAME_HUB)}
+        />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <StatCard title={t('dashboard.totalXp')} value={player.totalXp} isXP={true} icon={Trophy} color="bg-amber-500" />
-        <StatCard title={t('dashboard.level')} value={player.level} icon={Clock} color="bg-gray-700" />
-        <StatCard title={t('dashboard.completed')} value={player.gamesCompleted} icon={Target} color="bg-red-600" />
-        <StatCard title={t('dashboard.avgScore')} value={player.gamesCompleted > 0 ? Math.round(player.totalScore / player.gamesCompleted) : 0} icon={TrendingUp} color="bg-emerald-600" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <ErrorBoundary fallback={<div className="p-10 bg-white dark:bg-slate-900 rounded-xl border border-red-100 dark:border-red-900/30 text-center text-red-500 font-bold">Chart could not be rendered.</div>}>
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-6">{t('dashboard.performance')}</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#DC2626" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#DC2626" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "#1e293b" : "#f1f5f9"} />
-                    <XAxis dataKey="name" hide />
-                    <YAxis hide />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: isDark ? '#0f172a' : '#fff', 
-                        borderRadius: '8px', 
-                        border: `1px solid ${isDark ? '#1e293b' : '#e5e7eb'}`,
-                        color: isDark ? '#f8fafc' : '#1e293b'
-                      }}
-                    />
-                    <Area type="monotone" dataKey="score" stroke="#DC2626" fillOpacity={1} fill="url(#colorScore)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative group overflow-hidden">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center">
+                <TrendingUp className="w-4 h-4 mr-2 text-red-600" /> {t('dashboard.performance')}
+              </h3>
             </div>
-          </ErrorBoundary>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={resolvedTheme === 'dark' ? '#1e293b' : '#f1f5f9'} />
+                  <XAxis dataKey="name" hide />
+                  <YAxis hide domain={[0, 100]} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff' }}
+                    itemStyle={{ color: '#ef4444', fontWeight: 'bold' }}
+                  />
+                  <Area type="monotone" dataKey="score" stroke="#ef4444" fillOpacity={1} fill="url(#colorScore)" strokeWidth={4} dot={{ r: 4, fill: '#ef4444' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Clickable overlay to game hub */}
+            <button 
+              onClick={() => onNavigate(ViewState.GAME_HUB)}
+              className="absolute inset-0 bg-slate-900/0 hover:bg-slate-900/5 transition-colors flex items-center justify-center group"
+            >
+              <span className="bg-white dark:bg-slate-800 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-xl opacity-0 group-hover:opacity-100 transition-opacity translate-y-4 group-hover:translate-y-0 duration-300">Open Training Hub</span>
+            </button>
+          </div>
 
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100">{t('dashboard.trophyCase')}</h3>
-              <span className="text-xs font-bold text-gray-500 dark:text-slate-400 bg-gray-200 dark:bg-slate-800 px-2 py-1 rounded-full">
-                {player.achievements.length} / {AVAILABLE_ACHIEVEMENTS.length}
-              </span>
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">{t('dashboard.trophyCase')}</h3>
+              <button onClick={() => onNavigate(ViewState.PROFILE)} className="text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline">View Full Profile</button>
             </div>
-            <div className="flex space-x-3 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+            <div className="flex space-x-4 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
               {AVAILABLE_ACHIEVEMENTS.map((ach) => {
                 const isUnlocked = player.achievements.some(a => a.id === ach.id);
-                return <AchievementCard key={ach.id} achievement={ach} locked={!isUnlocked} />;
+                const Icon = (Icons as any)[ach.icon] || Trophy;
+                return (
+                  <button 
+                    key={ach.id} 
+                    onClick={() => !isUnlocked && onNavigate(ViewState.GAME_HUB)}
+                    className={cn(
+                    "min-w-[140px] p-5 rounded-3xl border-2 flex flex-col items-center text-center transition-all",
+                    isUnlocked 
+                      ? "bg-white dark:bg-slate-900 border-amber-200 dark:border-amber-900/50 shadow-md" 
+                      : "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 opacity-40 grayscale hover:opacity-100 hover:grayscale-0"
+                  )}>
+                    <div className={cn("w-12 h-12 rounded-full flex items-center justify-center mb-3", isUnlocked ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600" : "bg-slate-200 dark:bg-slate-700 text-slate-400")}>
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-[10px] font-black text-slate-900 dark:text-white uppercase mb-1 line-clamp-1">{ach.title}</h4>
+                    {!isUnlocked && <span className="text-[8px] font-bold text-red-500 uppercase">Go Unlock</span>}
+                  </button>
+                );
               })}
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
-            <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-4 flex items-center">
-              <Users className="w-5 h-5 mr-2 text-blue-600" />
-              Top Performers
+          <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-red-600 rounded-full blur-3xl opacity-20 -mr-16 -mt-16" />
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center">
+              <Users className="w-4 h-4 mr-2 text-blue-500" /> Factory Leaderboard
             </h3>
-            <div className="space-y-3">
-              {loadingLeaderboard ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-2">
-                    <div className="flex items-center gap-2">
-                      <Skeleton variant="circular" width={24} height={24} />
-                      <Skeleton variant="text" width={100} />
+            <div className="space-y-4">
+              {leaderboardData?.slice(0, 3).map((entry) => (
+                <div key={entry.userId} className="flex items-center justify-between group">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-xs font-black text-slate-500 w-4">#{entry.rank}</span>
+                    <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center font-bold text-xs border border-slate-700 group-hover:border-red-500 transition-colors">
+                      {entry.userName.charAt(0)}
                     </div>
-                    <Skeleton variant="text" width={40} />
+                    <span className="text-sm font-bold truncate max-w-[100px]">{entry.userName}</span>
                   </div>
-                ))
-              ) : leaderboardError ? (
-                <ApiError error={leaderboardError} onRetry={refetchLeaderboard} compact />
-              ) : (
-                leaderboardData?.slice(0, 5).map((entry) => (
-                  <div key={entry.userId} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hover:translate-x-1">
-                    <div className="flex items-center space-x-3">
-                      <span className={`w-6 text-xs font-black ${entry.rank === 1 ? 'text-yellow-600' : 'text-gray-400 dark:text-slate-500'}`}>#{entry.rank}</span>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{entry.userName}</p>
-                        <p className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase tracking-tight">Level {entry.level}</p>
-                      </div>
-                    </div>
-                    <p className="font-mono text-xs font-bold text-slate-600 dark:text-slate-400">{entry.xp.toLocaleString()}</p>
-                  </div>
-                ))
-              )}
+                  <span className="font-mono text-xs text-amber-500 font-bold">{entry.xp.toLocaleString()}</span>
+                </div>
+              ))}
             </div>
+            <button 
+              onClick={() => onNavigate(ViewState.LEADERBOARD)}
+              className="w-full mt-6 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+            >
+              Full Standings
+            </button>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800">
-            <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100 mb-4">{t('dashboard.recentActivity')}</h3>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800">
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">{t('dashboard.recentActivity')}</h3>
             <div className="space-y-4">
-              {player.recentActivity.length === 0 ? (
-                <p className="text-gray-400 dark:text-slate-500 text-sm italic">{t('dashboard.noActivity')}</p>
-              ) : (
-                player.recentActivity.slice().reverse().slice(0, 3).map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800 last:border-0 last:pb-0 animate-fade-in-up">
-                    <div>
-                      <p className="font-medium text-gray-700 dark:text-slate-200 text-sm truncate max-w-[120px]">{activity.game}</p>
-                      <p className="text-[10px] text-gray-400 dark:text-slate-500">{new Date(activity.date).toLocaleDateString()}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-emerald-600 dark:text-emerald-500 text-sm">+{activity.xp} XP</p>
-                      <p className="text-[10px] text-gray-500 dark:text-slate-500">{activity.score} pts</p>
-                    </div>
+              {player.recentActivity.slice(0, 3).map((act) => (
+                <div key={act.id} className="flex justify-between items-center border-b dark:border-slate-800 pb-3 last:border-0 last:pb-0">
+                  <div>
+                    <p className="text-xs font-black uppercase text-slate-900 dark:text-white truncate max-w-[120px]">{act.game}</p>
+                    <p className="text-[10px] text-slate-400 font-bold">{new Date(act.date).toLocaleDateString()}</p>
                   </div>
-                ))
-              )}
+                  <div className="text-right">
+                    <p className="text-xs font-black text-emerald-600">+{act.xp} XP</p>
+                    <p className="text-[10px] text-slate-400 font-bold">{act.score}%</p>
+                  </div>
+                </div>
+              ))}
             </div>
+            <button 
+              onClick={() => onNavigate(ViewState.GAME_HUB)}
+              className="w-full mt-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-600 transition-colors"
+            >
+              Start New Simulation
+            </button>
           </div>
         </div>
       </div>

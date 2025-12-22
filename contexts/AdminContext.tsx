@@ -1,47 +1,45 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Player, AdminRole } from '../types';
+import { Player, UserRole } from '../types';
 import { useAuth } from './AuthContext';
 
 interface AdminContextType {
-  role: AdminRole;
-  hasPermission: (requiredRole: AdminRole) => boolean;
+  role: UserRole;
+  hasPermission: (requiredRole: UserRole) => boolean;
   isAdmin: boolean;
   isAuditManager: boolean;
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
-// Hierarchy of roles for simple permission checking (index based)
-const ROLE_HIERARCHY = [
-  AdminRole.OPERATOR,
-  AdminRole.TRAINER,
-  AdminRole.AUDIT_MANAGER,
-  AdminRole.TENANT_ADMIN,
-  AdminRole.SUPER_ADMIN
+const ROLE_HIERARCHY: UserRole[] = [
+  UserRole.OPERATOR,
+  UserRole.TEAM_LEADER,
+  UserRole.CI_SPECIALIST,
+  UserRole.ADMIN,
+  UserRole.SUPER_ADMIN
 ];
 
 export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [role, setRole] = useState<AdminRole>(AdminRole.OPERATOR);
+  const [role, setRole] = useState<UserRole>(UserRole.OPERATOR);
 
   useEffect(() => {
     if (user) {
-      // Map string role from DB to Enum, fallback to OPERATOR
-      const userRole = (user.role as AdminRole) || AdminRole.OPERATOR;
-      setRole(userRole);
+      setRole(user.role);
     } else {
-      setRole(AdminRole.OPERATOR);
+      setRole(UserRole.OPERATOR);
     }
   }, [user]);
 
-  const hasPermission = (requiredRole: AdminRole): boolean => {
+  const hasPermission = (requiredRole: UserRole): boolean => {
     const userLevel = ROLE_HIERARCHY.indexOf(role);
     const requiredLevel = ROLE_HIERARCHY.indexOf(requiredRole);
     return userLevel >= requiredLevel;
   };
 
-  const isAdmin = hasPermission(AdminRole.TENANT_ADMIN);
-  const isAuditManager = hasPermission(AdminRole.AUDIT_MANAGER);
+  const isAdmin = hasPermission(UserRole.ADMIN);
+  const isAuditManager = hasPermission(UserRole.TEAM_LEADER);
 
   return (
     <AdminContext.Provider value={{ role, hasPermission, isAdmin, isAuditManager }}>

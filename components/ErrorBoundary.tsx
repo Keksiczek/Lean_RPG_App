@@ -14,7 +14,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-/* FIX: Explicitly extending React.Component with typed props and state ensures standard React properties are typed correctly */
+/**
+ * Standard Error Boundary component to catch rendering errors.
+ * Uses explicitly imported Component class to avoid issues with inherited properties in some TypeScript configurations.
+ */
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -24,36 +27,49 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     };
   }
 
+  /**
+   * Updates state so the next render will show the fallback UI.
+   */
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
+  /**
+   * Lifecycle method to catch errors in children components.
+   */
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    /* FIX: Correctly accessing this.props from base Component */
+    // Correct access to props via this.props.
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
   }
 
+  /**
+   * Resets the error state to allow the application to attempt re-rendering.
+   */
   handleReset = () => {
-    /* FIX: Correctly calling this.setState and accessing this.props from base Component */
+    // Correct access to setState via this.setState.
     this.setState({ hasError: false, error: null });
+    // Correct access to props via this.props.
     if (this.props.onReset) {
       this.props.onReset();
     }
   };
 
   render() {
-    /* FIX: Correctly accessing this.state and this.props from base Component */
-    if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
+    const { hasError, error } = this.state;
+    const { fallback, children } = this.props;
+
+    // Fix: Access state and props correctly to satisfy TypeScript requirements for class components.
+    if (hasError) {
+      if (fallback) {
+        return fallback as React.ReactNode;
       }
-      return <ErrorFallback error={this.state.error} onRetry={this.handleReset} />;
+      return <ErrorFallback error={error} onRetry={this.handleReset} />;
     }
 
-    return this.props.children;
+    return children;
   }
 }
 

@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { UserRole, Player } from '../types';
 import { authService } from '../services/authService';
@@ -79,19 +80,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasPermission = (permission: string): boolean => {
     if (!user) return false;
     const role = user.role as UserRole;
-    if (role === 'superadmin') return true;
-    if (role === 'admin') {
+    if (role === UserRole.SUPER_ADMIN) return true;
+    if (role === UserRole.ADMIN) {
       return !permission.startsWith('tenant:delete');
     }
-    if (role === 'moderator') {
+    // Fix: Corrected comparison with MODERATOR enum member
+    if (role === UserRole.MODERATOR) {
       return ['quests:read', 'quests:write', 'users:read', 'reports:view'].includes(permission);
     }
     return ['quests:read', 'reports:view'].includes(permission);
   };
 
-  const isAdmin = hasRole(['admin', 'superadmin']);
-  const isSuperAdmin = hasRole('superadmin');
-  const isModerator = hasRole(['moderator', 'admin', 'superadmin']);
+  // Fix: Corrected hasRole calls to use enum members
+  const isAdmin = hasRole([UserRole.ADMIN, UserRole.SUPER_ADMIN]);
+  const isSuperAdmin = hasRole(UserRole.SUPER_ADMIN);
+  const isModerator = hasRole([UserRole.MODERATOR, UserRole.ADMIN, UserRole.SUPER_ADMIN]);
 
   return (
     <AuthContext.Provider value={{ 

@@ -13,8 +13,12 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('lean-rpg-theme');
-    return (saved as Theme) || 'system';
+    try {
+      const saved = localStorage.getItem('lean-rpg-theme');
+      return (saved as Theme) || 'system';
+    } catch (e) {
+      return 'system';
+    }
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
@@ -40,13 +44,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         root.classList.remove('dark');
       }
 
-      localStorage.setItem('lean-rpg-theme', currentTheme);
+      try {
+        localStorage.setItem('lean-rpg-theme', currentTheme);
+      } catch (e) {}
     };
 
     applyTheme(theme);
 
     const listener = () => {
-      if (theme === 'system') applyTheme('system');
+      if (theme === 'system') {
+        const activeTheme = mediaQuery.matches ? 'dark' : 'light';
+        setResolvedTheme(activeTheme);
+        if (activeTheme === 'dark') {
+          root.classList.add('dark');
+        } else {
+          root.classList.remove('dark');
+        }
+      }
     };
 
     mediaQuery.addEventListener('change', listener);
@@ -59,7 +73,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggleTheme }}>
-      {children}
+      <div className={resolvedTheme}>
+        {children}
+      </div>
     </ThemeContext.Provider>
   );
 };

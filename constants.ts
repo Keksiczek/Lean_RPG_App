@@ -5,6 +5,12 @@ export const LEVEL_THRESHOLDS = [0, 1000, 2500, 4500, 7000, 10000];
 export const TRANSLATIONS = {
   cs: {
     menu: {
+      sections: {
+        monitoring: "Monitoring",
+        toolkit: "Lean Toolkit",
+        global: "Globální",
+        admin: "Správa"
+      },
       dashboard: "Nástěnka",
       factoryMap: "Mapa Továrny",
       workplaceHub: "Tréninkové Centrum",
@@ -111,6 +117,12 @@ export const TRANSLATIONS = {
   },
   en: {
     menu: {
+      sections: {
+        monitoring: "Monitoring",
+        toolkit: "Lean Toolkit",
+        global: "Global",
+        admin: "Administration"
+      },
       dashboard: "Dashboard",
       factoryMap: "Factory Map",
       workplaceHub: "Training Hub",

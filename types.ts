@@ -1,4 +1,5 @@
 
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GAME_HUB = 'GAME_HUB',
@@ -9,18 +10,20 @@ export enum ViewState {
   SKILLS = 'SKILLS',
   TASKS = 'TASKS',
   LEADERBOARD = 'LEADERBOARD',
+  COMPLIANCE_DASHBOARD = 'COMPLIANCE_DASHBOARD',
+  TEAM_MANAGEMENT = 'TEAM_MANAGEMENT',
+  METHODOLOGY_CONFIG = 'METHODOLOGY_CONFIG',
+  PROFILE = 'PROFILE',
+  SETTINGS_ACCOUNT = 'SETTINGS_ACCOUNT',
+  SETTINGS_FACTORY = 'SETTINGS_FACTORY',
+  NOTIFICATIONS = 'NOTIFICATIONS',
   ADMIN_DASHBOARD = 'ADMIN_DASHBOARD',
   ADMIN_USERS = 'ADMIN_USERS',
   ADMIN_QUESTS = 'ADMIN_QUESTS',
   ADMIN_BADGES = 'ADMIN_BADGES',
   ADMIN_SETTINGS = 'ADMIN_SETTINGS',
   ADMIN_REPORTS = 'ADMIN_REPORTS',
-  COMPLIANCE_DASHBOARD = 'COMPLIANCE_DASHBOARD',
   AUDIT_SESSION = 'AUDIT_SESSION',
-  PROFILE = 'PROFILE',
-  SETTINGS_ACCOUNT = 'SETTINGS_ACCOUNT',
-  SETTINGS_FACTORY = 'SETTINGS_FACTORY',
-  NOTIFICATIONS = 'NOTIFICATIONS',
 }
 
 export type Language = 'cs' | 'en' | 'de';
@@ -31,46 +34,23 @@ export enum Difficulty {
   HARD = 'hard',
 }
 
-/* FIX: Added AdminRole enum and expanded UserRole to cover all string literals and enum values used in the app */
-export type UserRole = 'user' | 'moderator' | 'admin' | 'superadmin' | 'operator' | 'trainer' | 'auditor' | 'SUPER_ADMIN' | 'TENANT_ADMIN' | 'AUDIT_MANAGER' | 'TRAINER' | 'OPERATOR';
+export type TaskCategory = '5S' | 'Safety' | 'Maintenance' | 'Quality' | 'Process';
+
+export enum UserRole {
+  OPERATOR = 'operator',
+  TEAM_LEADER = 'team_leader',
+  CI_SPECIALIST = 'ci_specialist',
+  MODERATOR = 'moderator',
+  ADMIN = 'admin',
+  SUPER_ADMIN = 'superadmin',
+}
 
 export enum AdminRole {
-  SUPER_ADMIN = 'superadmin',
-  TENANT_ADMIN = 'admin',
-  AUDIT_MANAGER = 'moderator',
-  TRAINER = 'trainer',
-  OPERATOR = 'user',
-}
-
-export interface TenantFeatures {
-  auditsEnabled: boolean;
-  ishikawaEnabled: boolean;
-  gembaEnabled: boolean;
-  leaderboardEnabled: boolean;
-  badgesEnabled: boolean;
-  achievementsEnabled: boolean;
-  chatbotEnabled: boolean;
-}
-
-export interface TenantSettings {
-  maxUsersPerTenant: number;
-  defaultLanguage: Language;
-  xpMultiplier: number;
-  welcomeMessage?: string;
-  supportEmail?: string;
-}
-
-export interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  logo?: string;
-  primaryColor: string;
-  secondaryColor: string;
-  features: TenantFeatures;
-  settings: TenantSettings;
-  createdAt: string;
-  isActive: boolean;
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  TENANT_ADMIN = 'TENANT_ADMIN',
+  AUDIT_MANAGER = 'AUDIT_MANAGER',
+  TRAINER = 'TRAINER',
+  OPERATOR = 'OPERATOR',
 }
 
 export interface User {
@@ -80,41 +60,129 @@ export interface User {
   xp: number;
   level: number;
   tenantId: string;
-  role: UserRole;
+  role: UserRole | string;
+  createdAt: string;
+  teamId?: string;
+}
+
+export type Player = User & {
+  username: string;
+  totalXp: number;
+  currentXp: number;
+  nextLevelXp: number;
+  gamesCompleted: number;
+  totalScore: number;
+  achievements: Achievement[];
+  recentActivity: ActivityLog[];
+};
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlockedAt?: string;
+  completed?: boolean;
+  targetValue?: number;
+  currentValue?: number;
+  code?: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  game: string;
+  score: number;
+  xp: number;
+  date: string;
+}
+
+export interface ActionTask {
+  id: string;
+  title: string;
+  description: string;
+  status: 'open' | 'in_progress' | 'done';
+  priority: 'low' | 'medium' | 'high';
+  category: TaskCategory;
+  source: string;
+  location?: string;
+  dueDate?: string;
+  imageUrl?: string;
+  workplaceId?: string;
   createdAt: string;
 }
 
-export type UserWithRole = User & {
-  tenant?: Tenant;
-};
+export interface Workplace {
+  id: string;
+  name: string;
+  type: 'production' | 'logistics' | 'quality' | 'office';
+  coordinates: { x: number; y: number };
+  status: 'optimal' | 'warning' | 'critical';
+  redTags: number;
+  activeTrainingModules: number;
+  checklist: string[];
+}
 
-// Backward compatibility alias
-export type Player = UserWithRole & {
-  username?: string;
-  totalXp?: number;
-  currentXp?: number;
-  nextLevelXp?: number;
-  gamesCompleted?: number;
-  totalScore?: number;
-  achievements?: Achievement[];
-  recentActivity?: ActivityLog[];
-};
+export interface LensChecklistResult {
+  item: string;
+  compliant: boolean;
+  observation: string;
+}
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  code?: string;
-  timestamp: string;
+export interface LensScanResult {
+  overallCompliance: number;
+  observation: string;
+  detectedHazards: {
+    name: string;
+    action: string;
+    severity: 'Low' | 'Medium' | 'High';
+    suggestion: string;
+    location: { top: number; left: number };
+  }[];
+  checklistResults?: LensChecklistResult[];
+  itemDetected?: string;
+  suggested5SAction?: string;
+  practicalAction?: string;
+}
+
+export interface LPAScanResult {
+  verified: boolean;
+  confidence: number;
+  compliance: 'High' | 'Medium' | 'Low';
+  observations: string[];
+  safetyRisk?: boolean;
+  identifiedIssues?: string[];
+}
+
+export enum IshikawaCategory {
+  MAN = 'Man',
+  MACHINE = 'Machine',
+  MATERIAL = 'Material',
+  METHOD = 'Method',
+  MEASUREMENT = 'Measurement',
+  ENVIRONMENT = 'Environment',
+}
+
+export interface IshikawaCause {
+  id: string;
+  category: IshikawaCategory;
+  cause: string;
+  isRootCause: boolean;
+}
+
+export interface IshikawaSolution {
+  title: string;
+  description: string;
+  priority: 'High' | 'Medium' | 'Low';
+  steps: string[];
 }
 
 export interface Quest {
   id: string;
   title: string;
   description: string;
-  xpReward: number;
   skillCode: string;
   difficulty: Difficulty;
+  xpReward: number;
   isActive?: boolean;
 }
 
@@ -126,50 +194,20 @@ export interface Submission {
   status: 'pending_analysis' | 'evaluated';
   feedback?: string;
   xpAwarded?: number;
-  createdAt: string;
   evaluatedAt?: string;
 }
 
-export interface Badge {
-  id: string;
-  code: string;
-  name: string;
-  description: string;
-  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-  xpBonus: number;
-  icon?: string;
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
 }
 
-export interface Achievement {
+export interface ChatMessage {
   id: string;
-  code?: string;
-  title: string;
-  description: string;
-  targetValue?: number;
-  currentValue?: number;
-  completed?: boolean;
-  icon?: string;
-  unlockedAt?: string;
-}
-
-export interface LeaderboardEntry {
-  rank: number;
-  id: string;
-  userId: string;
-  username: string;
-  userName: string;
-  xp: number;
-  totalXp: number;
-  level: number;
-  totalScore: number;
-}
-
-export interface ActivityLog {
-  id: string;
-  game: string;
-  score: number;
-  xp: number;
-  date: string;
+  role: 'user' | 'model';
+  text: string;
+  timestamp: Date;
 }
 
 export interface Skill {
@@ -186,161 +224,24 @@ export interface Skill {
   };
 }
 
-export interface ActionTask {
-  id: string;
-  title: string;
-  description: string;
-  status: 'open' | 'in_progress' | 'done';
-  priority: 'low' | 'medium' | 'high';
-  source: '5S Red Tag' | 'LPA Finding' | 'Ishikawa' | 'General';
-  assignee?: string;
-  dueDate?: string;
-  createdAt: string;
-  imageUrl?: string;
-  location?: string;
-  workplaceId?: string; 
-}
-
-export interface Workplace {
-  id: string;
-  name: string;
-  type: 'production' | 'logistics' | 'quality' | 'office';
-  coordinates: { x: number; y: number }; 
-  status: 'optimal' | 'warning' | 'critical';
-  redTags: number;
-  activeTrainingModules: number;
-  checklist: string[]; 
-  complianceScore?: number;
-  lastAuditDate?: string;
-}
-
-export interface AuditCheckItem {
-  category: '5S_Sort' | '5S_SetInOrder' | '5S_Shine' | '5S_Standardize' | '5S_Sustain';
-  item: string;
-  passed: boolean;
-  notes?: string;
-}
-
-export interface ChecklistItem {
-  id: string;
-  question: string;
-  expected_answer: "Yes" | "No" | "N/A" | "Text";
-  scoring_weight: number;
-  guidance: string;
-  photo_required: boolean;
-  category: string;
-  order?: number;
-}
-
-export interface ChecklistTemplate {
+export interface Badge {
   id: string;
   name: string;
   description: string;
-  category: "5S" | "LPA" | "Safety" | "Custom";
-  items: ChecklistItem[];
-  version: number;
-  isPublic: boolean;
-  isPublished: boolean;
-  createdBy: string;
-  tenantId: string;
-  createdAt: string;
-  updatedAt: string;
-  usageCount?: number;
+  code: string;
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+  xpBonus: number;
 }
 
-export interface AuditResponse {
-  itemId: string;
-  answer: string | boolean;
-  timestamp: string;
-  photoIds: string[];
-  notes: string;
-}
-
-export interface AuditFinding {
-  itemId: string;
-  severity: "Info" | "Minor" | "Major" | "Critical";
-  description: string;
-  photo?: string;
-  approved: boolean;
-}
-
-export interface AuditSession {
-  id: string;
-  checklistId: string;
-  workplaceId: string;
-  auditorId: string;
-  status: "in_progress" | "submitted" | "approved" | "rejected" | "cancelled";
-  responses: AuditResponse[];
-  photoEvidence: string[];
-  findings: AuditFinding[];
-  overallCompliance: number;
-  riskLevel: "Green" | "Yellow" | "Red";
-  score: number;
-  xpEarned: number;
-  startTime: string;
-  endTime?: string;
-  createdAt: string;
-  completedAt?: string;
-  checklistName?: string;
-  workplaceName?: string;
-  auditorName?: string;
-}
-
-export enum IshikawaCategory {
-  MAN = 'Man',
-  MACHINE = 'Machine',
-  METHOD = 'Method',
-  MATERIAL = 'Material',
-  MEASUREMENT = 'Measurement',
-  ENVIRONMENT = 'Environment',
-}
-
-export interface IshikawaCause {
-  category: IshikawaCategory;
-  cause: string;
-  isRootCause: boolean;
+export interface LeaderboardEntry {
+  userId: string;
+  userName: string;
+  xp: number;
+  level: number;
+  rank: number;
+  totalXp: number;
+  totalScore: number;
   id?: string;
-}
-
-export interface IshikawaProblem {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: Difficulty;
-  category: string;
-  isRealWorld?: boolean; 
-}
-
-export interface IshikawaSolution {
-  title: string;
-  description: string;
-  priority: 'High' | 'Medium' | 'Low';
-  steps: string[];
-}
-
-export interface LensScanResult {
-  overallCompliance: number; 
-  checklistResults: {
-    item: string;
-    compliant: boolean;
-    observation: string;
-  }[];
-  detectedHazards: {
-    name: string;
-    action: string;
-    severity: 'Low' | 'Medium' | 'High';
-  }[];
-  itemDetected?: string; 
-  observation?: string;
-  suggested5SAction?: string;
-  practicalAction?: string; 
-}
-
-export interface LPAScanResult {
-  compliance: 'High' | 'Medium' | 'Low';
-  observations: string[];
-  safetyRisk: boolean;
-  identifiedIssues: string[];
 }
 
 export interface Notification {
@@ -353,11 +254,12 @@ export interface Notification {
   relatedTaskId?: string;
 }
 
-export interface ChatMessage {
+export interface SubmissionResponse {
   id: string;
-  role: 'user' | 'model';
-  text: string;
-  timestamp: Date;
+  xpGain: number;
+  score: number;
+  status: string;
+  feedback?: string;
 }
 
 export interface AuditItem {
@@ -372,8 +274,8 @@ export interface AuditScene {
   title: string;
   description: string;
   difficulty: Difficulty;
-  xpReward: number;
   items: AuditItem[];
+  xpReward: number;
 }
 
 export interface LPAQuestion {
@@ -388,8 +290,102 @@ export interface LPAAudit {
   title: string;
   description: string;
   frequency: string;
-  xpReward: number;
   questions: LPAQuestion[];
+  xpReward: number;
+}
+
+export interface IshikawaProblem {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: Difficulty;
+  category: string;
+  isRealWorld?: boolean;
+}
+
+export interface ChecklistItem {
+  id: string;
+  question: string;
+  expected_answer: string;
+  scoring_weight: number;
+  guidance: string;
+  photo_required: boolean;
+  category: string;
+}
+
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  version: number;
+  isPublic: boolean;
+  isPublished: boolean;
+  createdBy: string;
+  tenantId: string;
+  createdAt: string;
+  updatedAt: string;
+  items: ChecklistItem[];
+  usageCount?: number;
+}
+
+export interface AuditResponse {
+  itemId: string;
+  answer: string;
+  timestamp: string;
+  photoIds?: string[];
+  notes?: string;
+}
+
+export interface AuditFinding {
+  itemId: string;
+  severity: string;
+  description: string;
+  photo?: string;
+  approved: boolean;
+}
+
+export interface AuditSession {
+  id: string;
+  checklistId: string;
+  workplaceId: string;
+  auditorId: string;
+  status: string;
+  responses: AuditResponse[];
+  photoEvidence: string[];
+  findings: AuditFinding[];
+  overallCompliance: number;
+  riskLevel: string;
+  score: number;
+  xpEarned: number;
+  startTime: string;
+  endTime?: string;
+  createdAt: string;
+  checklistName?: string;
+  workplaceName?: string;
+  auditorName?: string;
+}
+
+export interface TenantFeatures {
+  gamification: boolean;
+  aiVision: boolean;
+  lpa: boolean;
+  ishikawa: boolean;
+  factoryMap: boolean;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  logo?: string;
+  features: TenantFeatures;
+  settings: {
+    welcomeMessage: string;
+    supportEmail: string;
+    xpMultiplier: number;
+  };
 }
 
 export interface RedTagData {
@@ -398,14 +394,19 @@ export interface RedTagData {
   itemDetected: string;
   actionNeeded: string;
   location: string;
-  status: 'Open' | 'Closed';
+  status: string;
 }
 
-export interface SubmissionResponse {
-  id: number;
-  xpGain: number;
-  score: number;
-  status: string;
+export interface GembaObservation {
+  id: string;
+  station: number;
+  text: string;
+  type: 'Safety' | 'Quality' | 'Productivity' | 'Waste' | 'Improvement';
+}
+
+export interface GembaResult {
+  observations: GembaObservation[];
+  xp: number;
 }
 
 export interface AuditResult {
@@ -420,14 +421,4 @@ export interface IshikawaResult {
   xp: number;
 }
 
-export interface GembaObservation {
-  id: string;
-  station: number;
-  text: string;
-  type: 'Safety' | 'Quality' | 'Productivity' | 'Waste' | 'Improvement';
-}
-
-export interface GembaResult {
-  observations: GembaObservation[];
-  xp: number;
-}
+export type UserWithRole = Player;

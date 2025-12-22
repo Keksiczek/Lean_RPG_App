@@ -1,139 +1,167 @@
 
-import React from 'react';
-import { ViewState, Player } from '../types';
-import { LayoutDashboard, Gamepad2, LogOut, Menu, X, Map, Award, ClipboardList, BarChart2, Shield, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { ViewState, Player, UserRole } from '../types';
+import { 
+  LayoutDashboard, 
+  Gamepad2, 
+  Map, 
+  Award, 
+  ClipboardList, 
+  BarChart3, 
+  ShieldCheck, 
+  Users, 
+  Settings,
+  HelpCircle,
+  Menu,
+  X,
+  Zap,
+  GitBranch,
+  Eye,
+  Activity,
+  Trophy,
+  ChevronRight,
+  Search
+} from 'lucide-react';
 import StatsBar from './StatsBar';
 import NotificationCenter from './NotificationCenter';
 import UserProfileMenu from './UserProfileMenu';
 import ThemeToggle from './ui/ThemeToggle';
+import HelpCenter from './interactive/HelpCenter';
+import GuideTour from './interactive/GuideTour';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import RoleGate from './admin/RoleGate';
+import { cn } from '../utils/themeColors';
 
 interface LayoutProps {
   children: React.ReactNode;
   activeView: ViewState;
   onNavigate: (view: ViewState, data?: any) => void;
-  setView?: (view: ViewState) => void;
   player: Player;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, setView, player }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+const Layout: React.FC<LayoutProps> = ({ children, activeView, onNavigate, player }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
 
-  const handleNavigation = (view: ViewState, data?: any) => {
-    if (onNavigate) {
-        onNavigate(view, data);
-    } else if (setView) {
-        setView(view);
-    }
-    setIsSidebarOpen(false);
+  const isManager = user?.role === UserRole.TEAM_LEADER || user?.role === UserRole.CI_SPECIALIST || user?.role === UserRole.ADMIN;
+
+  const NavItem = ({ view, icon: Icon, label }: { view: ViewState; icon: any; label: string }) => {
+    const isActive = activeView === view;
+    // Highlight simulations section if active
+    const isSimView = [ViewState.GAME_AUDIT, ViewState.GAME_LPA, ViewState.GAME_ISHIKAWA].includes(view);
+    
+    return (
+      <button
+        onClick={() => {
+          onNavigate(view);
+          setIsMobileMenuOpen(false);
+        }}
+        className={cn(
+          "flex items-center w-full px-4 py-2.5 rounded-xl transition-all duration-200 group relative mb-1",
+          isActive
+            ? "bg-red-600 text-white shadow-lg shadow-red-900/20"
+            : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200"
+        )}
+      >
+        <div className={cn(
+          "p-1.5 rounded-lg mr-3 transition-colors",
+          isActive ? "bg-white/20" : "bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:text-red-500"
+        )}>
+          <Icon className="w-4 h-4 shrink-0" />
+        </div>
+        <span className="text-sm font-bold truncate">{label}</span>
+        {isActive && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
+      </button>
+    );
   };
 
-  const NavItem = ({ view, icon: Icon, label, color = 'bg-red-600' }: { view: ViewState; icon: any; label: string; color?: string }) => (
-    <button
-      onClick={() => handleNavigation(view)}
-      className={`flex items-center w-full px-4 py-3 rounded-lg transition-all border-l-4 ${
-        activeView === view
-          ? `${color} text-white border-red-800 shadow-md`
-          : 'text-gray-400 hover:bg-gray-800 dark:hover:bg-slate-800 hover:text-white border-transparent'
-      }`}
-    >
-      <Icon className="w-5 h-5 mr-3" />
-      <span className="font-medium">{label}</span>
-    </button>
+  const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <p className="px-4 mt-6 mb-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">{children}</p>
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-slate-950 flex font-sans transition-colors duration-200">
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 z-20 md:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row font-sans transition-colors duration-200 overflow-hidden">
+      <GuideTour />
+      <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} activeView={activeView} />
 
-      <aside className={`
-        fixed inset-y-0 left-0 z-30 w-64 bg-gray-900 dark:bg-slate-900 border-r border-gray-800 dark:border-slate-800 transform transition-transform duration-300 ease-in-out
-        md:relative md:translate-x-0
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        <div className="h-full flex flex-col">
-          <div className="p-6 border-b border-gray-800 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-red-600 rounded-sm flex items-center justify-center text-white font-bold transform skew-x-[-10deg]">L</div>
-              <span className="text-xl font-bold text-white tracking-tight">LEAN RPG</span>
-            </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400">
-              <X className="w-6 h-6" />
-            </button>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col shrink-0 h-screen sticky top-0 z-40">
+        <div className="p-6 flex flex-col h-full overflow-y-auto scrollbar-hide">
+          <div className="flex items-center space-x-3 mb-8 px-2">
+            <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white font-black transform -skew-x-12 shadow-lg shadow-red-600/20">L</div>
+            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">LEAN RPG</h1>
+          </div>
+          
+          <div className="mb-6">
+            <StatsBar player={player} />
           </div>
 
-          <div className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+          <nav className="flex-1">
+            <SectionHeader>Monitoring</SectionHeader>
             <NavItem view={ViewState.DASHBOARD} icon={LayoutDashboard} label={t('menu.dashboard')} />
-            <NavItem view={ViewState.TASKS} icon={ClipboardList} label={t('menu.tasks')} />
             <NavItem view={ViewState.FACTORY_MAP} icon={Map} label={t('menu.factoryMap')} />
-            <NavItem view={ViewState.GAME_HUB} icon={Gamepad2} label={t('menu.workplaceHub')} />
-            <NavItem view={ViewState.LEADERBOARD} icon={BarChart2} label={t('menu.leaderboard')} />
-            <NavItem view={ViewState.SKILLS} icon={Award} label={t('menu.skills')} />
             
-            <RoleGate requiredRole={['admin', 'superadmin']}>
-              <div className="my-4 border-t border-gray-800 dark:border-slate-800 opacity-50"></div>
-              <NavItem view={ViewState.ADMIN_DASHBOARD} icon={Shield} label="Administration" color="bg-indigo-600" />
-            </RoleGate>
-          </div>
-            
-          <div className="px-4 mt-auto mb-2">
-              <StatsBar player={player} />
-          </div>
+            <SectionHeader>Live Simulations</SectionHeader>
+            <NavItem view={ViewState.GAME_AUDIT} icon={Eye} label="5S Simulation" />
+            <NavItem view={ViewState.GAME_LPA} icon={ShieldCheck} label="LPA Guardian" />
+            <NavItem view={ViewState.GAME_ISHIKAWA} icon={GitBranch} label="Ishikawa RCA" />
 
-          <div className="px-4 pb-2">
-               <div className="flex bg-gray-800 dark:bg-slate-800 p-1 rounded-lg">
-                  <button 
-                    onClick={() => setLanguage('cs')}
-                    className={`flex-1 text-xs py-1.5 rounded-md font-bold transition-colors ${language === 'cs' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'}`}
-                  >
-                    CZ
-                  </button>
-                  <button 
-                    onClick={() => setLanguage('en')}
-                    className={`flex-1 text-xs py-1.5 rounded-md font-bold transition-colors ${language === 'en' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'}`}
-                  >
-                    EN
-                  </button>
-               </div>
+            <SectionHeader>Lean Toolkit</SectionHeader>
+            <NavItem view={ViewState.TASKS} icon={ClipboardList} label={t('menu.tasks')} />
+            <NavItem view={ViewState.SKILLS} icon={Award} label={t('menu.skills')} />
+            <NavItem view={ViewState.LEADERBOARD} icon={Trophy} label={t('menu.leaderboard')} />
+
+            {isManager && (
+              <>
+                <SectionHeader>Management</SectionHeader>
+                <NavItem view={ViewState.COMPLIANCE_DASHBOARD} icon={Activity} label="Compliance Hub" />
+                <NavItem view={ViewState.TEAM_MANAGEMENT} icon={Users} label="Team View" />
+                <NavItem view={ViewState.METHODOLOGY_CONFIG} icon={Settings} label="Methodology" />
+              </>
+            )}
+          </nav>
+
+          <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+            <button 
+              onClick={() => setIsHelpOpen(true)} 
+              className="flex items-center w-full px-4 py-2 text-slate-500 hover:text-red-600 transition-colors text-sm font-bold group"
+            >
+              <HelpCircle className="w-5 h-5 mr-3 text-slate-400 group-hover:text-red-500" /> Help Center
+            </button>
+            <div className="flex items-center justify-between px-2">
+              <ThemeToggle variant="icon" />
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                <button onClick={() => setLanguage('cs')} className={cn("px-2 py-1 text-[10px] font-black rounded", language === 'cs' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400')}>CZ</button>
+                <button onClick={() => setLanguage('en')} className={cn("px-2 py-1 text-[10px] font-black rounded", language === 'en' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400')}>EN</button>
+              </div>
+            </div>
           </div>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="hidden md:flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 h-16 items-center justify-between px-8 shadow-sm z-20">
-            <div className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide">
-                Lean Manufacturing Execution System
-            </div>
-            
-            <div className="flex items-center space-x-6">
-                <ThemeToggle variant="dropdown" />
-                <NotificationCenter onNavigate={handleNavigation} />
-                <div className="h-6 w-px bg-gray-200 dark:bg-slate-800"></div>
-                <UserProfileMenu user={player} onNavigate={handleNavigation} />
-            </div>
-        </header>
-
-        <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 p-4 flex md:hidden items-center justify-between z-20">
-          <button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 dark:text-slate-400">
-            <Menu className="w-6 h-6" />
-          </button>
-          <span className="font-bold text-gray-800 dark:text-slate-100">Lean RPG</span>
-          <div className="flex items-center space-x-2">
-            <ThemeToggle />
-            <NotificationCenter onNavigate={handleNavigation} />
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col min-w-0 h-full relative">
+        <header className="hidden md:flex h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 items-center justify-between px-8 shrink-0 z-30 transition-colors">
+          <div className="flex items-center space-x-4">
+             <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-red-500 transition-colors" />
+                <input 
+                  type="text" 
+                  placeholder="Search database..." 
+                  className="bg-slate-100 dark:bg-slate-800 border-0 rounded-full py-2 pl-10 pr-4 text-xs font-bold w-64 focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                />
+             </div>
+          </div>
+          <div className="flex items-center space-x-6">
+            <NotificationCenter onNavigate={onNavigate} />
+            <div className="h-6 w-px bg-slate-200 dark:border-slate-700 mx-2" />
+            <UserProfileMenu user={player} onNavigate={onNavigate} />
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 dark:bg-slate-950">
+        <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-8 md:p-8 bg-slate-50 dark:bg-slate-950 scroll-smooth">
           <div className="max-w-7xl mx-auto h-full">
             {children}
           </div>

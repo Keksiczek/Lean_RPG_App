@@ -1,10 +1,32 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { LPAAudit, LPAScanResult } from '../types';
+import { LPAAudit, LPAScanResult, LPAQuestion } from '../types';
 import { LPA_AUDITS } from '../constants';
 import { analyzeLPAImage } from '../services/geminiService';
 import { gameService } from '../services/gameService';
 import { useAuth } from '../contexts/AuthContext';
-import { CheckCircle2, AlertTriangle, ArrowLeft, Camera, ShieldCheck, ClipboardList, Loader2, ThumbsUp, ThumbsDown, Eye } from 'lucide-react';
+import { 
+  CheckCircle2, 
+  AlertTriangle, 
+  ArrowLeft, 
+  Camera, 
+  ShieldCheck, 
+  Loader2, 
+  ThumbsUp, 
+  ThumbsDown, 
+  Eye, 
+  ChevronRight, 
+  Sparkles, 
+  RotateCcw,
+  ShieldAlert,
+  Zap,
+  Trash2,
+  XCircle,
+  Settings,
+  Package,
+  Users
+} from 'lucide-react';
+import { cn } from '../utils/themeColors';
 
 interface LPAGameProps {
   onComplete: (xp: number, score: number, gameName: string) => void;
@@ -12,163 +34,171 @@ interface LPAGameProps {
   isRealWorldStart?: boolean;
 }
 
+const PREDEFINED_CATEGORIES = [
+  { id: 'prod', name: 'Production Cell', icon: Settings, color: 'text-blue-500' },
+  { id: 'wh', name: 'Warehouse / Dock', icon: Package, color: 'text-amber-500' },
+  { id: 'lab', name: 'QA / Maintenance', icon: ShieldCheck, color: 'text-emerald-500' }
+];
+
 const LPAGame: React.FC<LPAGameProps> = ({ onComplete, onExit, isRealWorldStart = false }) => {
   const { user } = useAuth();
   const [selectedAudit, setSelectedAudit] = useState<LPAAudit | null>(null);
-  const [answers, setAnswers] = useState<Record<string, 'Yes' | 'No'>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, { val: 'Yes' | 'No', aiVerified?: boolean, obs?: string[], imageUrl?: string }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Real World
   const [isLensMode, setIsLensMode] = useState(isRealWorldStart);
+  const [isContextConfirmed, setIsContextConfirmed] = useState(false);
+  const [auditArea, setAuditArea] = useState('');
+
+  // Camera & AI State
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<LPAScanResult | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [lpaCompleted, setLpaCompleted] = useState(false);
 
   useEffect(() => {
-    if (isRealWorldStart) setIsLensMode(true);
-  }, [isRealWorldStart]);
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    if (isLensMode && !capturedImage && videoRef.current) {
+    if (isCameraOpen && videoRef.current) {
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
         .then(s => {
-          stream = s;
-          if (videoRef.current) videoRef.current.srcObject = stream;
+          if (videoRef.current) videoRef.current.srcObject = s;
         })
-        .catch(err => {
-            console.error("Camera Error", err);
-        });
+        .catch(err => console.error("Camera Error", err));
     }
-    return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
-  }, [isLensMode, capturedImage, isRealWorldStart]);
+  }, [isCameraOpen]);
 
-  const captureAndAnalyze = async () => {
-    if (!videoRef.current || isScanning) return;
-    setIsScanning(true);
-    setScanResult(null);
+  const handleCapture = async () => {
+    if (!videoRef.current || isAnalyzing || !selectedAudit) return;
+    setIsAnalyzing(true);
 
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    const base64 = dataUrl.split(',')[1];
     
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-    setCapturedImage(canvas.toDataURL('image/jpeg', 0.8));
+    const q = selectedAudit.questions[currentStep];
+    const userVal = answers[q.id]?.val || 'Yes';
 
     try {
-      const result = await analyzeLPAImage(base64Image);
-      setScanResult(result);
+      const result = await analyzeLPAImage(base64, q.question, q.correctAnswer);
+      
+      setAnswers(prev => ({
+        ...prev,
+        [q.id]: { 
+          ...prev[q.id], 
+          aiVerified: result.verified, 
+          obs: result.observations,
+          imageUrl: dataUrl
+        }
+      }));
+      setIsCameraOpen(false);
     } catch (e) {
-      console.error(e);
-      setCapturedImage(null);
-      alert("Analysis failed.");
+      alert("AI analysis failed.");
     } finally {
-      setIsScanning(false);
+      setIsAnalyzing(false);
     }
   };
 
-  const confirmRealWorldLPA = async () => {
-    if (!user || !scanResult) return;
-    
-    // Save to backend
-    try {
-      await gameService.saveLPAResult(
-        'real-world-lpa',
-        scanResult.compliance === 'High' ? 100 : scanResult.compliance === 'Medium' ? 70 : 40,
-        300,
-        scanResult,
-        user.id
-      );
-      setLpaCompleted(true);
-      setTimeout(() => {
-        onComplete(300, 100, "Real World LPA: Process Verified");
-      }, 2000);
-    } catch (e) {
-      alert("Failed to save audit.");
-    }
+  const handleAnswer = (val: 'Yes' | 'No') => {
+    if (!selectedAudit) return;
+    const qId = selectedAudit.questions[currentStep].id;
+    setAnswers(prev => ({ ...prev, [qId]: { ...prev[qId], val } }));
   };
 
-  const resetScan = () => {
-    setCapturedImage(null);
-    setScanResult(null);
-  };
-
-  const toggleAnswer = (questionId: string, value: 'Yes' | 'No') => {
-    if (submitted) return;
-    setAnswers(prev => ({ ...prev, [questionId]: value }));
-  };
-
-  const handleSubmitSimulation = async () => {
+  const finishAudit = async () => {
     if (!selectedAudit || !user) return;
     setIsSubmitting(true);
 
-    const totalQ = selectedAudit.questions.length;
     let correctCount = 0;
-    
     selectedAudit.questions.forEach(q => {
-        if (answers[q.id] === q.correctAnswer) correctCount++;
+      if (answers[q.id]?.val === q.correctAnswer) correctCount++;
     });
 
-    const score = Math.round((correctCount / totalQ) * 100);
-    const xpEarned = Math.round(selectedAudit.xpReward * (score / 100));
-    
+    const score = Math.round((correctCount / selectedAudit.questions.length) * 100);
+    const xp = Math.round(selectedAudit.xpReward * (score / 100)) + (isLensMode ? 100 : 0);
+
     try {
-      await gameService.saveLPAResult(selectedAudit.id, score, xpEarned, answers, user.id);
-      setSubmitted(true);
-      setTimeout(() => {
-        onComplete(xpEarned, score, `LPA: ${selectedAudit.title}`);
-      }, 2000);
+      await gameService.saveLPAResult(selectedAudit.id, score, xp, answers, user.id);
+      onComplete(xp, score, `LPA: ${selectedAudit.title}`);
     } catch (e) {
-      alert("Failed to submit audit.");
+      alert("Failed to save audit.");
+    } finally {
       setIsSubmitting(false);
     }
   };
 
-  // ... [Views for Menu, Real World, and Simulation - mostly unchanged logic, just event handlers above] ...
+  // --- VIEWS ---
 
-  // VIEW: SELECTION MENU
-  if (!selectedAudit && !isLensMode) {
-     // ... (Same as before)
-     return (
+  if (isLensMode && !isContextConfirmed) {
+      return (
+        <div className="fixed inset-0 bg-white dark:bg-slate-950 z-[60] flex flex-col p-8 md:p-12 font-sans overflow-hidden">
+             <header className="mb-10 flex justify-between items-start">
+               <div>
+                  <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">LPA Vision Setup</h2>
+                  <p className="text-slate-500 dark:text-slate-400 mt-3 font-medium">Verify standard work in the real world.</p>
+               </div>
+               <button onClick={onExit} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-full"><XCircle className="w-6 h-6 text-slate-400" /></button>
+            </header>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+               {PREDEFINED_CATEGORIES.map(cat => (
+                 <button 
+                   key={cat.id}
+                   onClick={() => {
+                     setAuditArea(cat.name);
+                     setIsContextConfirmed(true);
+                   }}
+                   className="flex flex-col items-start p-8 rounded-[2rem] border-2 border-slate-100 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 transition-all text-left bg-white dark:bg-slate-900 group shadow-sm"
+                 >
+                    <div className={cn("p-4 rounded-2xl mb-6 bg-slate-50 dark:bg-slate-800 transition-colors group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20", cat.color)}>
+                       <cat.icon className="w-10 h-10" />
+                    </div>
+                    <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-xl">{cat.name}</h3>
+                 </button>
+               ))}
+            </div>
+            
+            <div className="mt-auto pt-8 border-t dark:border-slate-800 flex items-center gap-2 text-slate-400 italic text-sm">
+               <Sparkles className="w-4 h-4" />
+               <p>AI will verify visual evidence for each checklist item to ensure zero-defect process compliance.</p>
+            </div>
+        </div>
+      );
+  }
+
+  if (!selectedAudit) {
+    return (
       <div className="space-y-6 animate-fade-in">
         <div className="flex justify-between items-center">
-          <button onClick={onExit} className="flex items-center text-slate-500 hover:text-slate-800">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Hub
-          </button>
-          
-          <button 
-            onClick={() => setIsLensMode(true)}
-            className="bg-purple-900 text-white px-4 py-2 rounded-full font-bold shadow-lg hover:bg-purple-800 flex items-center transition-all"
-          >
-            <Camera className="w-4 h-4 mr-2" />
-            Launch Live LPA
-          </button>
+          <button onClick={onExit} className="flex items-center text-slate-500 font-bold"><ArrowLeft className="w-4 h-4 mr-2" /> Back</button>
+          <div className="px-4 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-red-100">Quality Assurance</div>
         </div>
+        
+        <header className="space-y-2">
+          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Layered Process Audits</h2>
+          <p className="text-slate-500">Select a standard work verification plan {isLensMode ? `for ${auditArea}` : ''}.</p>
+        </header>
 
-        <h2 className="text-2xl font-bold text-slate-800">Select Process Audit</h2>
         <div className="grid gap-4 md:grid-cols-2">
           {LPA_AUDITS.map(audit => (
             <div 
-              key={audit.id}
+              key={audit.id} 
               onClick={() => setSelectedAudit(audit)}
-              className="bg-white p-6 rounded-xl border border-slate-200 cursor-pointer hover:border-purple-500 hover:shadow-md transition-all relative overflow-hidden"
+              className="bg-white p-8 rounded-[2rem] border-2 border-slate-100 cursor-pointer hover:border-red-500 transition-all group flex flex-col justify-between h-48"
             >
-              <div className="absolute top-0 right-0 p-3 opacity-10">
-                <ClipboardList className="w-12 h-12 text-slate-900" />
+              <div>
+                <div className="flex justify-between items-start">
+                  <h3 className="font-black text-xl text-slate-900 uppercase tracking-tight">{audit.title}</h3>
+                  <ShieldCheck className="w-6 h-6 text-slate-200 group-hover:text-red-500 transition-colors" />
+                </div>
+                <p className="text-slate-400 text-xs mt-2 font-medium">{audit.description}</p>
               </div>
-              <h3 className="font-bold text-lg text-slate-800 mb-1">{audit.title}</h3>
-              <div className="flex space-x-2 mb-3">
-                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold uppercase">{audit.frequency}</span>
-                 <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">{audit.questions.length} Questions</span>
+              <div className="flex justify-between items-center mt-4">
+                <span className="text-[10px] font-black uppercase bg-slate-100 px-2 py-1 rounded text-slate-500">{audit.frequency}</span>
+                <span className="text-amber-500 text-xs font-black flex items-center gap-1"><Zap className="w-3 h-3" /> {audit.xpReward} XP</span>
               </div>
-              <p className="text-slate-500 text-sm">{audit.description}</p>
             </div>
           ))}
         </div>
@@ -176,165 +206,177 @@ const LPAGame: React.FC<LPAGameProps> = ({ onComplete, onExit, isRealWorldStart 
     );
   }
 
-  // VIEW: REAL WORLD
-  if (isLensMode) {
-    // ... (Same as before, confirm button calls confirmRealWorldLPA)
-     return (
-      <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fade-in">
-        {/* Header */}
-        <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-center">
-          <button onClick={() => isRealWorldStart ? onExit() : setIsLensMode(false)} className="text-white bg-white/20 p-2 rounded-full backdrop-blur-sm">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="text-white text-center">
-            <h2 className="font-bold text-sm tracking-wider uppercase">LPA Vision</h2>
-            <p className="text-[10px] text-white/70">Verify Process • Ensure Safety</p>
+  const q = selectedAudit.questions[currentStep];
+  const progress = ((currentStep + 1) / selectedAudit.questions.length) * 100;
+  const currentAns = answers[q.id];
+
+  return (
+    <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-140px)] animate-fade-in pb-10">
+      {/* Progress Header */}
+      <div className="mb-8 space-y-4">
+        <div className="flex justify-between items-end">
+          <button onClick={() => setSelectedAudit(null)} className="text-slate-400 hover:text-slate-900 transition-colors"><RotateCcw className="w-5 h-5" /></button>
+          <div className="text-right">
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Question {currentStep + 1} of {selectedAudit.questions.length}</p>
+             <p className="text-sm font-bold text-slate-900">{selectedAudit.title} {isLensMode ? `• ${auditArea}` : ''}</p>
           </div>
-          <div className="w-9"></div>
         </div>
-
-        <div className="relative flex-1 bg-slate-900 overflow-hidden">
-          {capturedImage ? (
-             <img src={capturedImage} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="Captured" />
-          ) : (
-             <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-90" />
-          )}
-          
-          {/* RESULTS CARD */}
-          {scanResult && (
-            <div className="absolute inset-0 flex items-end md:items-center justify-center p-4 z-30 animate-slide-up bg-gradient-to-t from-black/80 via-transparent to-transparent md:bg-black/40 md:backdrop-blur-sm">
-              <div className="bg-white w-full max-w-sm rounded-t-2xl md:rounded-xl overflow-hidden shadow-2xl">
-                <div className={`p-4 text-white flex justify-between items-center ${
-                   scanResult.compliance === 'High' ? 'bg-emerald-600' : scanResult.compliance === 'Medium' ? 'bg-amber-500' : 'bg-red-600'
-                }`}>
-                   <div>
-                      <h3 className="font-bold text-lg">Process Compliance</h3>
-                      <p className="text-xs opacity-90 uppercase tracking-widest">{scanResult.compliance} Level</p>
-                   </div>
-                </div>
-
-                <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-                   <div>
-                     <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Observations</h4>
-                     <ul className="space-y-2">
-                        {scanResult.observations.map((obs, i) => (
-                           <li key={i} className="flex items-start text-sm text-slate-700">
-                              <Eye className="w-4 h-4 mr-2 text-purple-500 mt-0.5 shrink-0" />
-                              {obs}
-                           </li>
-                        ))}
-                     </ul>
-                   </div>
-
-                   <div className="pt-2 flex gap-3">
-                      {!lpaCompleted ? (
-                         <>
-                           <button onClick={resetScan} className="flex-1 py-3 bg-slate-100 rounded-lg text-slate-600 font-bold text-sm">Retake</button>
-                           <button onClick={confirmRealWorldLPA} className="flex-1 py-3 bg-purple-600 text-white rounded-lg font-bold text-sm shadow-lg hover:bg-purple-700">
-                             Log Audit
-                           </button>
-                         </>
-                      ) : (
-                         <div className="w-full bg-green-100 text-green-700 py-3 rounded-lg flex items-center justify-center font-bold">
-                           <CheckCircle2 className="w-5 h-5 mr-2" /> Audit Saved
-                         </div>
-                      )}
-                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        {/* Shutter */}
-        <div className="h-24 bg-black/40 backdrop-blur-md absolute bottom-0 w-full flex justify-center items-center z-20">
-          {!scanResult && !isScanning && (
-            <button
-              onClick={captureAndAnalyze}
-              className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
-            >
-              <div className="w-14 h-14 bg-white rounded-full"></div>
-            </button>
-          )}
+        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full bg-red-600 transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
       </div>
-     );
-  }
 
-  // VIEW: SIMULATION
-  if (selectedAudit) {
-    const isCompleted = Object.keys(answers).length === selectedAudit.questions.length;
-    return (
-      <div className="max-w-2xl mx-auto space-y-6 animate-fade-in pb-12">
-        {/* ... Header ... */}
-        <div className="flex items-center justify-between">
-            <button onClick={() => setSelectedAudit(null)} className="flex items-center text-slate-500 hover:text-slate-800">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Audit List
-            </button>
-            <div className="text-right">
-              <h2 className="font-bold text-slate-800">{selectedAudit.title}</h2>
-              <p className="text-xs text-slate-500">{selectedAudit.frequency} Audit</p>
-            </div>
+      {/* Main Card */}
+      <div className="flex-1 bg-white rounded-[2.5rem] shadow-xl border-2 border-slate-100 overflow-hidden flex flex-col relative">
+        <div className="p-10 flex-1 flex flex-col justify-center text-center">
+           <span className="text-[10px] font-black uppercase text-red-600 tracking-[0.2em] mb-4 bg-red-50 px-3 py-1 rounded-full mx-auto">{q.category} Check</span>
+           <h3 className="text-3xl font-black text-slate-900 leading-tight uppercase tracking-tighter mb-10">{q.question}</h3>
+           
+           <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto w-full mb-8">
+              <button 
+                onClick={() => handleAnswer('Yes')}
+                className={cn(
+                  "py-6 rounded-2xl font-black uppercase tracking-widest flex flex-col items-center gap-3 transition-all",
+                  currentAns?.val === 'Yes' ? "bg-emerald-600 text-white shadow-lg scale-105" : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                )}
+              >
+                <ThumbsUp className="w-8 h-8" /> Yes
+              </button>
+              <button 
+                onClick={() => handleAnswer('No')}
+                className={cn(
+                  "py-6 rounded-2xl font-black uppercase tracking-widest flex flex-col items-center gap-3 transition-all",
+                  currentAns?.val === 'No' ? "bg-red-600 text-white shadow-lg scale-105" : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                )}
+              >
+                <ThumbsDown className="w-8 h-8" /> No
+              </button>
+           </div>
+
+           {isLensMode && !currentAns?.imageUrl && (
+               <div className="animate-pulse flex flex-col items-center">
+                   <p className="text-xs font-bold text-red-600 uppercase mb-4">Evidence Required for Vision Audit</p>
+                   <button 
+                     onClick={() => setIsCameraOpen(true)}
+                     disabled={!currentAns?.val}
+                     className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center gap-3 disabled:opacity-30"
+                   >
+                     <Camera className="w-6 h-6" /> Take Verification Photo
+                   </button>
+               </div>
+           )}
+
+           {currentAns?.imageUrl && (
+               <div className="relative w-48 h-32 mx-auto rounded-2xl overflow-hidden border-4 border-white shadow-xl">
+                   <img src={currentAns.imageUrl} className="w-full h-full object-cover" />
+                   <button onClick={() => setAnswers(prev => ({...prev, [q.id]: {...prev[q.id], imageUrl: undefined, aiVerified: undefined}}))} className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full"><Trash2 className="w-4 h-4" /></button>
+                   {currentAns.aiVerified !== undefined && (
+                        <div className={cn(
+                            "absolute inset-0 flex flex-col items-center justify-center backdrop-blur-sm",
+                            currentAns.aiVerified ? "bg-emerald-500/20" : "bg-red-500/20"
+                        )}>
+                            {currentAns.aiVerified ? <CheckCircle2 className="w-8 h-8 text-white drop-shadow-md" /> : <AlertTriangle className="w-8 h-8 text-white drop-shadow-md" />}
+                            <span className="text-[10px] font-black text-white uppercase mt-1">{currentAns.aiVerified ? 'AI Verified' : 'AI Warning'}</span>
+                        </div>
+                   )}
+               </div>
+           )}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-           {/* ... Questions List ... */}
-           <div className="divide-y divide-slate-100">
-              {selectedAudit.questions.map((q) => (
-                 <div key={q.id} className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                       <h3 className="font-bold text-slate-800 text-sm md:text-base pr-4">{q.question}</h3>
-                    </div>
-                    <div className="flex space-x-3">
-                       <button 
-                          onClick={() => toggleAnswer(q.id, 'Yes')}
-                          disabled={submitted}
-                          className={`flex-1 py-2 rounded-lg border-2 flex items-center justify-center transition-all ${
-                             answers[q.id] === 'Yes' 
-                             ? 'border-green-500 bg-green-50 text-green-700 font-bold' 
-                             : 'border-slate-200 text-slate-400 hover:border-green-300'
-                          }`}
-                       >
-                          <ThumbsUp className="w-4 h-4 mr-2" /> Yes
-                       </button>
-                       <button 
-                          onClick={() => toggleAnswer(q.id, 'No')}
-                          disabled={submitted}
-                          className={`flex-1 py-2 rounded-lg border-2 flex items-center justify-center transition-all ${
-                             answers[q.id] === 'No' 
-                             ? 'border-red-500 bg-red-50 text-red-700 font-bold' 
-                             : 'border-slate-200 text-slate-400 hover:border-red-300'
-                          }`}
-                       >
-                          <ThumbsDown className="w-4 h-4 mr-2" /> No
-                       </button>
-                    </div>
-                 </div>
-              ))}
+        {/* AI Analysis Result List */}
+        {currentAns?.obs && (
+            <div className="px-10 pb-10">
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <Sparkles className="w-3 h-3 text-red-600" /> Sensei Insights
+                    </p>
+                    <ul className="space-y-1">
+                        {currentAns.obs.map((o, idx) => (
+                            <li key={idx} className="text-xs text-slate-600 italic flex items-start gap-2">
+                                <span className="text-red-500">•</span> {o}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+           <button 
+             onClick={() => setCurrentStep(prev => Math.max(0, prev - 1))}
+             disabled={currentStep === 0}
+             className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-900 disabled:opacity-30"
+           >
+             <ArrowLeft className="w-5 h-5" />
+           </button>
+           
+           <div className="flex gap-3">
+               {currentStep === selectedAudit.questions.length - 1 ? (
+                 <button 
+                   onClick={finishAudit}
+                   disabled={!currentAns || isSubmitting || (isLensMode && !currentAns.imageUrl)}
+                   className="bg-red-600 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl flex items-center gap-2 hover:bg-red-700 disabled:opacity-50"
+                 >
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+                    Finalize LPA
+                 </button>
+               ) : (
+                 <button 
+                   onClick={() => setCurrentStep(prev => prev + 1)}
+                   disabled={!currentAns || (isLensMode && !currentAns.imageUrl)}
+                   className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-800 disabled:opacity-50 shadow-lg"
+                 >
+                    Next <ChevronRight className="w-5 h-5" />
+                 </button>
+               )}
            </div>
         </div>
-
-        <div className="flex justify-end">
-          {submitted ? (
-             <div className="bg-green-100 text-green-800 px-6 py-3 rounded-lg flex items-center animate-pulse">
-                <CheckCircle2 className="w-5 h-5 mr-2" /> Audit Submitted!
-             </div>
-          ) : (
-            <button 
-              onClick={handleSubmitSimulation}
-              disabled={isSubmitting || !isCompleted}
-              className="bg-purple-600 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center"
-            >
-              {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Submit Audit
-            </button>
-          )}
-        </div>
       </div>
-    );
-  }
 
-  return null;
+      {/* Camera Modal */}
+      {isCameraOpen && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-fade-in">
+           <div className="relative flex-1">
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              
+              <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+                 <div className="bg-white/10 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 text-white text-xs font-bold mb-8">
+                     Capturing evidence for: {q.question}
+                 </div>
+                 <div className="w-64 h-64 border-2 border-white/20 rounded-[3rem] relative">
+                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white"></div>
+                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white"></div>
+                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white"></div>
+                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white"></div>
+                 </div>
+              </div>
+
+              {isAnalyzing && (
+                <div className="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center backdrop-blur-md">
+                   <Loader2 className="w-16 h-16 text-white animate-spin mb-4" />
+                   <p className="text-white font-black text-2xl uppercase tracking-tighter animate-pulse">AI Verification...</p>
+                </div>
+              )}
+
+              <button onClick={() => setIsCameraOpen(false)} className="absolute top-8 right-8 p-3 bg-white/10 backdrop-blur-md rounded-full text-white">
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+           </div>
+
+           <div className="h-32 bg-slate-950 flex items-center justify-center">
+              <button 
+                onClick={handleCapture}
+                disabled={isAnalyzing}
+                className="w-20 h-20 bg-white rounded-full border-8 border-white/20 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+              >
+                 <div className="w-12 h-12 border-4 border-slate-900 rounded-full" />
+              </button>
+           </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default LPAGame;

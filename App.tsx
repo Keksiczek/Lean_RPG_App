@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
-import { ViewState, Player, Achievement } from './types';
+import React, { useState } from 'react';
+import { ViewState, Achievement, UserRole } from './types';
 import { checkForNewAchievements } from './utils/gameUtils';
 import Layout from './components/Layout';
-import AdminLayout from './components/admin/AdminLayout';
 import Dashboard from './components/Dashboard';
 import GameHub from './components/GameHub';
 import AuditGame from './components/AuditGame';
@@ -16,66 +15,37 @@ import Leaderboard from './components/Leaderboard';
 import AchievementToast from './components/AchievementToast';
 import LeanChatbot from './components/LeanChatbot';
 import LoginForm from './components/LoginForm';
-import AuditSessionComponent from './components/AuditSession';
-import ProtectedRoute from './components/ProtectedRoute';
+import TeamManagement from './pages/TeamManagement';
+import MethodologyConfig from './pages/MethodologyConfig';
+import ComplianceDashboard from './pages/ComplianceDashboard';
+import ProfilePage from './pages/ProfilePage';
+import AccountSettingsPage from './pages/AccountSettingsPage';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { TenantProvider, useTenant } from './contexts/TenantContext';
-import { AdminProvider } from './contexts/AdminContext';
-import { ToastProvider } from './contexts/ToastContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AnimationProvider } from './contexts/AnimationContext';
+import { ToastProvider } from './contexts/ToastContext';
+import { AdminProvider } from './contexts/AdminContext';
+import { GuideProvider } from './contexts/GuideContext';
 import ToastContainer from './components/ToastContainer';
 import AnimationLayer from './components/AnimationLayer';
 import ErrorBoundary from './components/ErrorBoundary';
 import ErrorFallback from './components/ui/ErrorFallback';
 import { Loader2 } from 'lucide-react';
 
-// Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard';
-import UserManagement from './pages/admin/UserManagement';
-import QuestManagement from './pages/admin/QuestManagement';
-import TenantSettings from './pages/admin/TenantSettings';
-import BadgeManagement from './pages/admin/BadgeManagement';
-
-// Other Pages
-import ProfilePage from './pages/ProfilePage';
-import AccountSettingsPage from './pages/AccountSettingsPage';
-import FactorySettingsPage from './pages/admin/FactorySettingsPage';
-import NotificationsPage from './pages/NotificationsPage';
-import ComplianceDashboard from './pages/ComplianceDashboard';
-
 const AppContent: React.FC = () => {
-  const { user, isAuthenticated, isLoading, refreshUser, isAdmin } = useAuth();
-  const { isLoading: isTenantLoading } = useTenant();
+  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
   const [activeView, setActiveView] = useState<ViewState>(ViewState.DASHBOARD);
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
-  
-  const [isRealWorldMode, setIsRealWorldMode] = useState(false);
-  const [activeChecklist, setActiveChecklist] = useState<string[]>([]);
-  const [gameContext, setGameContext] = useState<string>('');
   const [navigationData, setNavigationData] = useState<any>(null);
 
-  if (isLoading || isTenantLoading) {
-    return (
-      <div className="min-h-screen bg-gray-100 dark:bg-slate-950 flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-red-600 animate-spin" />
-      </div>
-    );
+  if (isLoading) {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="w-10 h-10 text-red-600 animate-spin" /></div>;
   }
 
-  if (!isAuthenticated || !user) {
-    return <LoginForm />;
-  }
+  if (!isAuthenticated || !user) return <LoginForm />;
 
   const handleNavigation = (view: ViewState, data?: any) => {
-    if (!view.toString().startsWith('GAME_')) {
-        setIsRealWorldMode(false);
-    }
-    
-    if (data?.isRealWorld) setIsRealWorldMode(true);
-    if (data?.checklist) setActiveChecklist(data.checklist);
-    if (data?.context) setGameContext(data.context);
     setNavigationData(data || null);
     setActiveView(view);
   };
@@ -83,89 +53,69 @@ const AppContent: React.FC = () => {
   const handleGameComplete = async (xpEarned: number, score: number, gameName: string) => {
     try {
       await refreshUser();
-      const earnedAchievements = checkForNewAchievements(user, score, gameName);
-      if (earnedAchievements.length > 0) {
-        setNewAchievement(earnedAchievements[0]);
-      }
-    } catch (error) {
-      console.error("Failed to sync game result", error);
-    }
-    
+      const earned = checkForNewAchievements(user, score, gameName);
+      if (earned.length > 0) setNewAchievement(earned[0]);
+    } catch (e) { console.error(e); }
     setActiveView(ViewState.DASHBOARD);
-    setIsRealWorldMode(false);
   };
+
+  const isManager = [UserRole.TEAM_LEADER, UserRole.CI_SPECIALIST, UserRole.ADMIN].includes(user.role as UserRole);
 
   const renderView = () => {
     switch (activeView) {
-      // Main App Views
-      case ViewState.DASHBOARD: return <Dashboard player={user} />;
+      case ViewState.DASHBOARD: return <Dashboard player={user} onNavigate={handleNavigation} />;
       case ViewState.TASKS: return <TaskManager initialTaskId={navigationData?.taskId} />;
-      case ViewState.FACTORY_MAP: return <FactoryMap onNavigate={(view, isRealWorld, data) => handleNavigation(view, { isRealWorld, ...data })} />;
-      case ViewState.GAME_HUB: return <GameHub onSelectGame={(view, isRealWorld) => handleNavigation(view, { isRealWorld })} level={user.level} />;
-      case ViewState.LEADERBOARD: return <Leaderboard initialSkill={navigationData?.skill} />;
+      case ViewState.FACTORY_MAP: return <FactoryMap onNavigate={handleNavigation} />;
+      case ViewState.GAME_HUB: return <GameHub onSelectGame={handleNavigation} level={user.level} />;
+      case ViewState.LEADERBOARD: return <Leaderboard />;
       case ViewState.SKILLS: return <SkillsPage player={user} />;
       case ViewState.PROFILE: return <ProfilePage />;
       case ViewState.SETTINGS_ACCOUNT: return <AccountSettingsPage />;
-      case ViewState.NOTIFICATIONS: return <NotificationsPage />;
-      case ViewState.COMPLIANCE_DASHBOARD: return <ComplianceDashboard />;
-      case ViewState.AUDIT_SESSION: return <AuditSessionComponent onExit={() => setActiveView(ViewState.DASHBOARD)} onComplete={() => handleGameComplete(100, 100, "Audit")} templateId={navigationData?.templateId} />;
-      case ViewState.GAME_AUDIT: return <AuditGame onComplete={handleGameComplete} onExit={() => setActiveView(ViewState.GAME_HUB)} isRealWorldStart={isRealWorldMode} checklist={activeChecklist} initialContext={gameContext} />;
-      case ViewState.GAME_LPA: return <LPAGame onComplete={handleGameComplete} onExit={() => setActiveView(ViewState.GAME_HUB)} isRealWorldStart={isRealWorldMode} />;
-      case ViewState.GAME_ISHIKAWA: return <IshikawaGame onComplete={handleGameComplete} onExit={() => setActiveView(ViewState.GAME_HUB)} isRealWorldStart={isRealWorldMode} />;
+      case ViewState.GAME_AUDIT: return <AuditGame onComplete={handleGameComplete} onExit={() => setActiveView(ViewState.GAME_HUB)} isRealWorldStart={navigationData?.isRealWorld} checklist={navigationData?.checklist} initialContext={navigationData?.context} />;
+      case ViewState.GAME_LPA: return <LPAGame onComplete={handleGameComplete} onExit={() => setActiveView(ViewState.GAME_HUB)} isRealWorldStart={navigationData?.isRealWorld} />;
+      case ViewState.GAME_ISHIKAWA: return <IshikawaGame onComplete={handleGameComplete} onExit={() => setActiveView(ViewState.GAME_HUB)} isRealWorldStart={navigationData?.isRealWorld} />;
       
-      // Admin Views (Only accessible through AdminLayout or RoleGate)
-      case ViewState.ADMIN_DASHBOARD: return <AdminDashboard />;
-      case ViewState.ADMIN_USERS: return <UserManagement />;
-      case ViewState.ADMIN_QUESTS: return <QuestManagement />;
-      case ViewState.ADMIN_BADGES: return <BadgeManagement />;
-      case ViewState.ADMIN_SETTINGS: return <TenantSettings />;
-      case ViewState.ADMIN_REPORTS: return <ComplianceDashboard />;
+      // Protected Manager Views
+      case ViewState.TEAM_MANAGEMENT: 
+        return isManager ? <TeamManagement /> : <Dashboard player={user} onNavigate={handleNavigation} />;
+      case ViewState.METHODOLOGY_CONFIG: 
+        return isManager ? <MethodologyConfig /> : <Dashboard player={user} onNavigate={handleNavigation} />;
+      case ViewState.COMPLIANCE_DASHBOARD: 
+        return isManager ? <ComplianceDashboard /> : <Dashboard player={user} onNavigate={handleNavigation} />;
       
-      default: return <Dashboard player={user} />;
+      default: return <Dashboard player={user} onNavigate={handleNavigation} />;
     }
   };
-
-  const isAdminView = activeView.toString().startsWith('ADMIN_');
-
-  if (isAdminView) {
-    return (
-      <AdminLayout activeView={activeView} onNavigate={handleNavigation}>
-        {renderView()}
-      </AdminLayout>
-    );
-  }
 
   return (
     <Layout activeView={activeView} onNavigate={handleNavigation} player={user}>
       {renderView()}
-      <LeanChatbot activeView={activeView} contextData={{ checklist: activeChecklist, gameContext: gameContext }} />
+      <LeanChatbot activeView={activeView} />
       <AchievementToast achievement={newAchievement} onClose={() => setNewAchievement(null)} />
       <AnimationLayer />
     </Layout>
   );
 };
 
-const App: React.FC = () => {
-  return (
-    <ErrorBoundary fallback={<ErrorFallback />}>
-      <ThemeProvider>
-        <TenantProvider>
-          <AnimationProvider>
-            <ToastProvider>
-              <LanguageProvider>
-                <AuthProvider>
-                  <AdminProvider>
-                    <AppContent />
-                    <ToastContainer />
-                  </AdminProvider>
-                </AuthProvider>
-              </LanguageProvider>
-            </ToastProvider>
-          </AnimationProvider>
-        </TenantProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
-};
+const App: React.FC = () => (
+  <ErrorBoundary fallback={<ErrorFallback error={null} />}>
+    <ThemeProvider>
+      <AnimationProvider>
+        <ToastProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <AdminProvider>
+                <GuideProvider>
+                  <AppContent />
+                  <ToastContainer />
+                </GuideProvider>
+              </AdminProvider>
+            </AuthProvider>
+          </LanguageProvider>
+        </ToastProvider>
+      </AnimationProvider>
+    </ThemeProvider>
+  </ErrorBoundary>
+);
 
 export default App;

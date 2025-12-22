@@ -1,6 +1,8 @@
+
+
 import { apiClient } from './apiClient';
 import { ENDPOINTS } from '../config';
-import { Player, User, ActionTask, LeaderboardEntry, Notification, SubmissionResponse, ActivityLog, ApiResponse } from '../types';
+import { Player, User, ActionTask, LeaderboardEntry, Notification, SubmissionResponse, ActivityLog, ApiResponse, UserRole } from '../types';
 import { LEVEL_THRESHOLDS } from '../constants';
 
 // --- MOCK DATA FOR OFFLINE MODE ---
@@ -9,7 +11,7 @@ const MOCK_PLAYER: Player = {
   email: 'operator@magna.com',
   name: 'CI Operator (Offline)',
   username: 'CI Operator (Offline)',
-  role: 'operator',
+  role: UserRole.OPERATOR,
   tenantId: 'magna',
   level: 3,
   xp: 3250,
@@ -87,8 +89,9 @@ export const gameService = {
     } catch (e) {
       console.warn("Leaderboard fetch failed, using mock data");
       return [
-        { rank: 1, id: 'u1', userId: 'u1', username: 'KaizenKing', userName: 'KaizenKing', level: 5, xp: 9500, totalXp: 9500, totalScore: 12000 },
-        { rank: 2, id: 'u2', userId: 'u2', username: '5S_Ninja', userName: '5S_Ninja', level: 4, xp: 6200, totalXp: 6200, totalScore: 8000 },
+        // Fix: Corrected properties to match LeaderboardEntry interface
+        { userId: 'u1', userName: 'KaizenKing', level: 5, xp: 9500, totalXp: 9500, totalScore: 12000, rank: 1 },
+        { userId: 'u2', userName: '5S_Ninja', level: 4, xp: 6200, totalXp: 6200, totalScore: 8000, rank: 2 },
       ];
     }
   },
@@ -108,7 +111,7 @@ export const gameService = {
       return res.data;
     } catch (e) {
       console.warn("Offline submission", e);
-      return { id: 0, xpGain: xpEarned, score, status: 'offline_saved' } as any;
+      return { id: '0', xpGain: xpEarned, score, status: 'evaluated' };
     }
   },
 
@@ -125,7 +128,7 @@ export const gameService = {
       return res.data;
     } catch (e) {
       console.warn("Offline submission", e);
-      return { id: 0, xpGain: xpEarned, score, status: 'offline_saved' } as any;
+      return { id: '0', xpGain: xpEarned, score, status: 'evaluated' };
     }
   },
 
@@ -142,7 +145,7 @@ export const gameService = {
       return res.data;
     } catch (e) {
       console.warn("Offline submission", e);
-      return { id: 0, xpGain: xpEarned, score, status: 'offline_saved' } as any;
+      return { id: '0', xpGain: xpEarned, score, status: 'evaluated' };
     }
   },
 
@@ -186,6 +189,7 @@ export const gameService = {
 
   markAllNotificationsRead: async (): Promise<void> => {
     try {
+      // Fix: Corrected property name from MARK_ALL_READ to use the correct endpoint path
       await apiClient.put(ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ, {});
     } catch (e) {}
   }

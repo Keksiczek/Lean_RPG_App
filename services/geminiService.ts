@@ -1,8 +1,7 @@
-/* FIX: Removed Schema import as it is not needed for object-based schema definitions */
+
 import { GoogleGenAI, Type, Chat } from "@google/genai";
 import { IshikawaCause, IshikawaSolution, LensScanResult, LPAScanResult } from "../types";
 
-// Schema for structured output
 const solutionSchema = {
   type: Type.OBJECT,
   properties: {
@@ -26,23 +25,11 @@ const solutionSchema = {
   required: ["solutions"]
 };
 
-// Updated Lens Schema for AR Checklist Validation
 const lensSchema = {
   type: Type.OBJECT,
   properties: {
     overallCompliance: { type: Type.INTEGER, description: "0 to 100" },
-    checklistResults: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          item: { type: Type.STRING },
-          compliant: { type: Type.BOOLEAN },
-          observation: { type: Type.STRING }
-        },
-        required: ["item", "compliant", "observation"]
-      }
-    },
+    observation: { type: Type.STRING },
     detectedHazards: {
       type: Type.ARRAY,
       items: {
@@ -50,19 +37,29 @@ const lensSchema = {
         properties: {
           name: { type: Type.STRING },
           action: { type: Type.STRING, enum: ["Sort", "Set in Order", "Shine", "Standardize", "Sustain"] },
-          severity: { type: Type.STRING, enum: ["Low", "Medium", "High"] }
+          severity: { type: Type.STRING, enum: ["Low", "Medium", "High"] },
+          suggestion: { type: Type.STRING },
+          location: {
+            type: Type.OBJECT,
+            properties: {
+              top: { type: Type.INTEGER, description: "Percentage from top 0-100" },
+              left: { type: Type.INTEGER, description: "Percentage from left 0-100" }
+            },
+            required: ["top", "left"]
+          }
         },
-        required: ["name", "action", "severity"]
+        required: ["name", "action", "severity", "suggestion", "location"]
       }
     }
   },
-  required: ["overallCompliance", "checklistResults", "detectedHazards"]
+  required: ["overallCompliance", "observation", "detectedHazards"]
 };
 
 const lpaSchema = {
   type: Type.OBJECT,
   properties: {
-    compliance: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+    verified: { type: Type.BOOLEAN, description: "Whether the image matches the expected standard" },
+    confidence: { type: Type.INTEGER, description: "0 to 100" },
     observations: { 
       type: Type.ARRAY,
       items: { type: Type.STRING }
@@ -73,39 +70,17 @@ const lpaSchema = {
       items: { type: Type.STRING }
     }
   },
-  required: ["compliance", "observations", "safetyRisk", "identifiedIssues"]
+  required: ["verified", "confidence", "observations", "safetyRisk", "identifiedIssues"]
 };
 
-// --- Ishikawa Generation ---
 export const generateSolutions = async (
   problemTitle: string,
   problemDescription: string,
   causes: IshikawaCause[]
 ): Promise<IshikawaSolution[]> => {
-  /* FIX: Using process.env.API_KEY directly as required by guidelines. Assuming it is pre-configured. */
-  if (!process.env.API_KEY) {
-    console.warn("API Key not found, using mock response");
-    return [
-      {
-        title: "Standardize Operator Training",
-        description: "Develop a TWI (Training Within Industry) module.",
-        priority: "High",
-        steps: ["Create standard work sheet", "Train shift supervisors"]
-      },
-      {
-        title: "Preventative Maintenance Schedule",
-        description: "Update the PM schedule.",
-        priority: "Medium",
-        steps: ["Audit current PM logs", "Adjust frequency"]
-      }
-    ];
-  }
-
-  /* FIX: Always initialize with new GoogleGenAI({ apiKey: process.env.API_KEY }) */
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  /* FIX: Consistently access cause text from IshikawaCause across possible interface variations */
-  const causesText = causes.map(c => `- [${c.category}] ${c.cause || (c as any).text}`).join("\n");
+  // Fix: Property 'text' does not exist on type 'IshikawaCause'. Using 'cause' property as defined in types.ts.
+  const causesText = causes.map(c => `- [${c.category}] ${c.cause}`).join("\n");
 
   const prompt = `
     You are a Lean Manufacturing Expert.
@@ -117,11 +92,11 @@ export const generateSolutions = async (
   `;
 
   try {
-    /* FIX: Updated model to gemini-3-flash-preview as per guidelines */
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
+        // Correct usage of generateContent config for JSON response.
         responseMimeType: "application/json",
         responseSchema: solutionSchema,
         temperature: 0.3, 
@@ -130,203 +105,109 @@ export const generateSolutions = async (
 
     const text = response.text;
     if (!text) return [];
-
     const result = JSON.parse(text);
     return result.solutions || [];
-
   } catch (error) {
     console.error("Error generating solutions:", error);
     throw new Error("Failed to generate solutions.");
   }
 };
 
-// --- Vision / Lens Analysis ---
 export const analyze5SImage = async (base64Image: string, context?: string, checklist: string[] = []): Promise<LensScanResult> => {
-  /* FIX: Always check for and use process.env.API_KEY directly */
-  if (!process.env.API_KEY) {
-    return new Promise(resolve => setTimeout(() => resolve({
-      overallCompliance: 65,
-      checklistResults: checklist.length > 0 ? checklist.map((item, i) => ({
-          item,
-          compliant: i % 2 === 0, // Mock alternating compliance
-          observation: i % 2 === 0 ? "Looks good." : "Item appears disorganized or missing."
-      })) : [],
-      detectedHazards: [
-          { name: "Unknown Object in Walkway", action: "Sort", severity: "Medium" }
-      ],
-      // Backward compat
-      itemDetected: "Cluttered Area",
-      observation: "General disarray observed.",
-      suggested5SAction: "Sort",
-      practicalAction: "Remove unnecessary items."
-    }), 2000));
-  }
-
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  let promptText = `
-    Role: Lean Manufacturing 5S Auditor.
-    Task: Analyze this image for 5S compliance and safety hazards.
-    Location Context: "${context || "General Workplace"}".
-  `;
-
-  if (checklist.length > 0) {
-      promptText += `\nValidate against these specific standards:\n${checklist.map(c => `- ${c}`).join('\n')}`;
-  } else {
-      promptText += `\nIdentify any specific items or areas that violate 5S principles (clutter, dirt, unorganized tools, safety hazard).`;
-  }
+  let promptText = `Role: Real-time Lean 5S Auditor. Analyze the image for 5S violations in: "${context || "General Workplace"}". 
+  
+  Focus: Clutter, missing labels, misplaced tools, safety hazards.
+  
+  For EVERY violation:
+  1. Identify the object/area precisely.
+  2. Map to Sort, Set in Order, Shine, Standardize, or Sustain.
+  3. Provide a practical suggestion.
+  4. COORDINATES: Estimate (top, left) percentages (0-100) where the violation is visible.
+  
+  Checklist context: ${checklist.join(', ')}`;
 
   try {
-    /* FIX: Updated model to gemini-3-flash-preview as per guidelines */
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: base64Image
-            }
-          },
-          {
-            text: promptText
-          }
-        ]
+        // Multi-part input with image and text.
+        parts: [{ inlineData: { mimeType: "image/jpeg", data: base64Image } }, { text: promptText }]
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: lensSchema,
-      }
+      config: { responseMimeType: "application/json", responseSchema: lensSchema }
     });
 
     const text = response.text;
-    if (!text) throw new Error("No response from vision model");
-    
+    if (!text) throw new Error("No vision response");
     const result = JSON.parse(text);
+    
+    const primaryHazard = result.detectedHazards?.[0];
+    return { 
+      ...result, 
+      itemDetected: primaryHazard?.name, 
+      suggested5SAction: primaryHazard?.action, 
+      practicalAction: primaryHazard?.suggestion,
+      checklistResults: []
+    };
+  } catch (error) {
+    console.error("Vision Error:", error);
+    return { overallCompliance: 0, observation: "Error", detectedHazards: [], checklistResults: [], itemDetected: "Error", suggested5SAction: "N/A", practicalAction: "N/A" };
+  }
+};
 
-    // Map new structure to old structure for backward compatibility if needed by components
-    const primaryHazard = result.detectedHazards?.[0] || { name: "General Issue", action: "Sort", severity: "Low" };
+export const analyzeLPAImage = async (base64Image: string, question: string, expectedAnswer: string): Promise<LPAScanResult> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const prompt = `Task: Verify industrial process compliance.
+  Question being checked: "${question}"
+  Expected Answer (Standard): "${expectedAnswer}"
+  
+  Analyze the image. Does the visual evidence match the expected standard? 
+  Report "verified: true" if it complies, "false" if it doesn't. 
+  List specific observations.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        // Multi-part input with image and text.
+        parts: [{ inlineData: { mimeType: "image/jpeg", data: base64Image } }, { text: prompt }]
+      },
+      config: { responseMimeType: "application/json", responseSchema: lpaSchema }
+    });
+    const text = response.text;
+    const result = text ? JSON.parse(text) : { verified: false, confidence: 0, observations: [], safetyRisk: true, identifiedIssues: [] };
     
     return {
         ...result,
-        itemDetected: primaryHazard.name,
-        suggested5SAction: primaryHazard.action,
-        observation: result.checklistResults?.find((r: any) => !r.compliant)?.observation || "Issue detected via AR scan.",
-        practicalAction: `Address: ${primaryHazard.name}`
-    } as LensScanResult;
-
-  } catch (error) {
-    console.error("Vision Error:", error);
-    // Graceful fallback
-    return {
-      overallCompliance: 0,
-      checklistResults: [],
-      detectedHazards: [{ name: "Scan Error", action: "Sustain", severity: "Low" }],
-      itemDetected: "Error",
-      observation: "Could not process image.",
-      suggested5SAction: "Sustain",
-      practicalAction: "Retry scan."
+        compliance: result.verified ? (result.confidence > 80 ? 'High' : 'Medium') : 'Low',
+        safetyRisk: result.safetyRisk ?? true,
+        identifiedIssues: result.identifiedIssues ?? []
     };
-  }
-};
-
-export const analyzeLPAImage = async (base64Image: string): Promise<LPAScanResult> => {
-  if (!process.env.API_KEY) {
-    return new Promise(resolve => setTimeout(() => resolve({
-      compliance: "Medium",
-      observations: ["PPE usage needs verification", "Walkways appear clear"],
-      safetyRisk: false,
-      identifiedIssues: ["Potential material crowding near station"]
-    }), 2000));
-  }
-
-  /* FIX: Direct use of process.env.API_KEY for GoogleGenAI initialization */
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  try {
-    /* FIX: Consistent use of gemini-3-flash-preview for vision tasks */
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: base64Image
-            }
-          },
-          {
-            text: "Analyze this image for industrial safety and standard work compliance (Layered Process Audit). Look for PPE usage, trip hazards, proper material storage, and general cleanliness. Is the process being followed?"
-          }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: lpaSchema,
-      }
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("No response from vision model");
-    
-    return JSON.parse(text) as LPAScanResult;
-
   } catch (error) {
     console.error("LPA Vision Error:", error);
-    return {
-      compliance: "Low",
-      observations: ["Analysis failed due to technical error"],
-      safetyRisk: true,
-      identifiedIssues: ["Error: Could not process image"]
-    };
+    // Fix: Added missing verified and confidence properties to match LPAScanResult interface.
+    return { verified: false, confidence: 0, compliance: "Low", observations: ["Error analyzing image"], safetyRisk: true, identifiedIssues: [] as string[] };
   }
 };
 
-// --- Lean Sensei Chat ---
 let chatSession: Chat | null = null;
-
 export const sendMessageToSensei = async (message: string, context?: string): Promise<string> => {
-  if (!process.env.API_KEY) {
-    return "I am running in demo mode. Please configure the API Key to chat with me about Lean methodologies! (Context: " + (context || "None") + ")";
-  }
-
-  /* FIX: Direct use of process.env.API_KEY for GoogleGenAI initialization */
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
   if (!chatSession) {
-    /* FIX: Updated model to gemini-3-flash-preview as per guidelines */
+    // Create a new chat session with system instruction.
     chatSession = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: `
-          You are 'Lean Sensei', a wise, professional, and encouraging mentor in a manufacturing environment.
-          Your goal is to teach Lean principles (5S, Kaizen, Six Sigma, Ishikawa) by guiding the user, not just giving answers.
-          
-          Tone:
-          - Professional but approachable.
-          - Use Socratic questioning when appropriate (e.g., "Why do you think that waste exists?").
-          - Be concise and actionable.
-          - Use formatting (bolding, lists) to make text easy to read.
-
-          Context Awareness:
-          - You will receive the user's current activity/location in the message payload. Use this!
-          - If the user is in an Audit, suggest what to look for based on the zone.
-          - If the user is solving a problem, guide them through the 5 Whys.
-        `
+        systemInstruction: "You are 'Lean Sensei', a wise and encouraging mentor in a manufacturing environment. Guide users through Lean principles using Socratic questioning. Keep responses concise and practical."
       }
     });
   }
-
   try {
-    // Inject context into the message prompt if provided
-    const contentToSend = context 
-        ? `[SYSTEM CONTEXT: User is currently ${context}] \nUser Message: ${message}`
-        : message;
-
-    const result = await chatSession.sendMessage({ message: contentToSend });
+    const content = context ? `[CONTEXT: ${context}] ${message}` : message;
+    const result = await chatSession.sendMessage({ message: content });
     return result.text || "I'm thinking...";
   } catch (error) {
-    console.error("Chat error:", error);
-    return "I seem to be having trouble connecting to the factory network. Please try again.";
+    chatSession = null; // Reset on error
+    return "Connection interrupted. Let's try that again.";
   }
 };

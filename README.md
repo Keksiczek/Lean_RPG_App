@@ -1,24 +1,59 @@
-# Lean RPG Frontend (Vite)
+# Lean RPG 🏭✨
+> **Gamifying Manufacturing Excellence with AI**
 
-A high-performance React application for Lean manufacturing training, featuring real-time AI evaluation using Google Gemini.
+![Architecture Overview](/Users/keks/.gemini/antigravity/brain/7688ffd0-a0da-453b-af01-a80270b6cd05/architecture_diagram.png)
 
-## Backend Connection
-This application is designed to work with the [Lean-rpg-complete](https://github.com/Keksiczek/Lean-rpg-complete) backend.
+## 🚨 The Problem
+Traditional manufacturing training (5S, Safety, Continuous Improvement) is **boring**, **static**, and **disconnected from reality**. Operators nod through slides but fail to apply concepts on the shop floor.
 
-- **Default API URL:** `http://localhost:4000`
-- **Port:** 4000 (Express)
-- **Environment Variable:** `VITE_API_URL`
+## 🎯 Target User
+- **CI Specialists & Plant Managers:** Who need higher engagement and real-time data on shop floor compliance.
+- **Operators & Team Leaders:** Who need a fun, interactive way to learn and track their daily improvements.
 
-## Running the App
-1. Ensure the backend is running.
-2. Install dependencies: `npm install`
-3. Start development server: `npm run dev`
+## 🔑 Key Scenarios
+1.  **Onboarding:** New hires find hazards in a virtual AR environment before stepping on the line.
+2.  **Daily Gemba:** Managers earn XP for logging valid safety observations during walks.
+3.  **Problem Solving:** Teams use the interactive AI-assisted Fishbone diagram to solve root causes.
 
-## Key Features
+👉 [**Read Detailed Use Cases**](/docs/USE_CASES.md)
+
+## 🎮 Features
 - **AR 5S Scanner:** Uses Gemini Vision to analyze real workplace images.
-- **AI Quest Evaluation:** Asynchronous submission flow with polling for AI feedback.
 - **Digital Twin:** Interactive factory map with location-based training.
 - **Gamification:** Real-time level progress, badges, and global Hall of Fame.
+- **AI Feedback Loop:** Instant grading of your audits by Google Gemini.
 
-## Development
-This project is part of the Lean RPG monorepo. When contributing, ensure your changes follow the Tailwind CSS utility-first approach and maintain TypeScript type safety as defined in `types.ts`.
+## 🚀 Live Demo
+Access the latest build here:
+**[LINK TO LIVE DEMO - PENDING]**
+
+*Credentials for demo:* `admin / demo123`
+
+---
+
+## 🛠 Architecture Overview
+The application is currently a **Client-Side Heavy / Serverless-First** architecture designed for rapid scaling.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App as React Frontend (Gamification Engine)
+    participant AI as Gemini API
+    
+    User->>App: Completes 5S Audit
+    App->>AI: Sends Image for Analysis
+    AI-->>App: Returns Compliance Score & Hazards
+    App->>App: Calculates XP & Badges
+    App-->>User: Awards "Junior Auditor" Badge
+```
+
+## 👩‍💻 For Developers & AI Agents
+This repository is structured as an **AI Playground**.
+- **[Status & Roadmap](STATUS.md)**
+- **[AI Agent Guide](docs/AI_AGENT_GUIDE.md)**
+
+### Quick Start
+```bash
+npm install
+npm run dev
+```

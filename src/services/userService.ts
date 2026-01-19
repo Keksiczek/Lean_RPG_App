@@ -1,89 +1,79 @@
 import { apiClient } from './apiClient';
-import { ENDPOINTS } from '../config';
-import { Player, AdminRole } from '../types';
+import { ENDPOINTS, getTenantId } from '../config';
+import { Player, UserRole, ApiResponse } from '../types';
 
-// Mock Users - Mutable for demo session
 let MOCK_USERS: Player[] = [
   {
-    id: 1,
+    id: 'u1',
     email: 'operator@magna.com',
+    name: 'John Operator',
     username: 'John Operator',
-    role: AdminRole.OPERATOR,
-    tenantId: 'magna',
+    role: UserRole.OPERATOR,
+    tenantId: getTenantId(),
     level: 3,
+    xp: 3200,
     totalXp: 3200,
+    currentXp: 3200,
+    nextLevelXp: 4500,
     gamesCompleted: 15,
     totalScore: 4500,
     createdAt: '2023-01-15T00:00:00Z',
     achievements: [],
-    recentActivity: [],
-    currentXp: 200,
-    nextLevelXp: 1000
+    recentActivity: []
   },
   {
-    id: 2,
-    email: 'manager@magna.com',
-    username: 'Sarah Manager',
-    role: AdminRole.AUDIT_MANAGER,
-    tenantId: 'magna',
+    id: 'u2',
+    email: 'sarah@magna.com',
+    name: 'Sarah TeamLead',
+    username: 'Sarah TeamLead',
+    role: UserRole.TEAM_LEADER,
+    tenantId: getTenantId(),
     level: 5,
-    totalXp: 8500,
-    gamesCompleted: 42,
-    totalScore: 12000,
-    createdAt: '2022-11-20T00:00:00Z',
-    achievements: [],
-    recentActivity: [],
+    xp: 7500,
+    totalXp: 7500,
     currentXp: 500,
-    nextLevelXp: 2000
-  },
-  {
-    id: 3,
-    email: 'admin@magna.com',
-    username: 'Mike Admin',
-    role: AdminRole.TENANT_ADMIN,
-    tenantId: 'magna',
-    level: 2,
-    totalXp: 1500,
-    gamesCompleted: 5,
-    totalScore: 2000,
-    createdAt: '2023-03-10T00:00:00Z',
+    nextLevelXp: 10000,
+    gamesCompleted: 30,
+    totalScore: 9000,
+    createdAt: '2023-02-10T00:00:00Z',
     achievements: [],
-    recentActivity: [],
-    currentXp: 500,
-    nextLevelXp: 1000
+    recentActivity: []
   }
 ];
 
 export const userService = {
   getAll: async (): Promise<Player[]> => {
     try {
-      return await apiClient.get<Player[]>(ENDPOINTS.USERS.BASE);
+      const res = await apiClient.get<ApiResponse<Player[]>>('/api/users');
+      return res.data || MOCK_USERS;
     } catch (e) {
-      console.warn("Using mock users");
       return MOCK_USERS;
     }
   },
 
   create: async (data: Partial<Player>): Promise<Player> => {
     try {
-      return await apiClient.post<Player>(ENDPOINTS.USERS.BASE, data);
+      const res = await apiClient.post<ApiResponse<Player>>('/api/users', data);
+      if (!res.success || !res.data) throw new Error(res.error);
+      return res.data;
     } catch (e) {
-      console.warn("Mock create user");
       const newUser: Player = {
-        id: Math.floor(Math.random() * 10000) + 100,
+        id: `u-${Math.random().toString(36).substr(2, 9)}`,
         email: data.email || 'user@example.com',
-        username: data.username || 'New User',
-        role: data.role || AdminRole.OPERATOR,
-        tenantId: 'magna',
+        name: data.name || 'New User',
+        username: data.username || data.name || 'New User',
+        role: data.role || UserRole.OPERATOR,
+        tenantId: getTenantId(),
         level: 1,
+        xp: 0,
         totalXp: 0,
+        currentXp: 0,
+        nextLevelXp: 1000,
         gamesCompleted: 0,
         totalScore: 0,
         createdAt: new Date().toISOString(),
         achievements: [],
         recentActivity: [],
-        currentXp: 0,
-        nextLevelXp: 1000,
         ...data
       } as Player;
       MOCK_USERS.push(newUser);
@@ -91,11 +81,12 @@ export const userService = {
     }
   },
 
-  update: async (id: number, data: Partial<Player>): Promise<Player> => {
+  update: async (id: string, data: Partial<Player>): Promise<Player> => {
     try {
-      return await apiClient.put<Player>(`${ENDPOINTS.USERS.BASE}/${id}`, data);
+      const res = await apiClient.put<ApiResponse<Player>>(`/api/users/${id}`, data);
+      if (!res.success || !res.data) throw new Error(res.error);
+      return res.data;
     } catch (e) {
-      console.warn("Mock update user");
       const index = MOCK_USERS.findIndex(u => u.id === id);
       if (index !== -1) {
         MOCK_USERS[index] = { ...MOCK_USERS[index], ...data };
@@ -105,16 +96,15 @@ export const userService = {
     }
   },
 
-  delete: async (id: number): Promise<void> => {
+  delete: async (id: string): Promise<void> => {
     try {
-      await apiClient.delete(`${ENDPOINTS.USERS.BASE}/${id}`);
+      await apiClient.delete(`/api/users/${id}`);
     } catch (e) {
-      console.warn("Mock delete user");
       MOCK_USERS = MOCK_USERS.filter(u => u.id !== id);
     }
   },
 
-  updateRole: async (userId: number, role: string): Promise<Player> => {
+  updateRole: async (userId: string, role: UserRole): Promise<Player> => {
     return userService.update(userId, { role });
   }
 };

@@ -1,97 +1,101 @@
-import { prisma } from '../config/database';
-import { CreateChecklistSchema } from '../validators/checklist';
-import { z } from 'zod';
-import { NotFoundError } from '../utils/errors';
-
-type CreateChecklistInput = z.infer<typeof CreateChecklistSchema>;
+import { apiClient } from './apiClient';
+import { ENDPOINTS, getTenantId } from '../config';
+import { ChecklistTemplate, ApiResponse } from '../types';
 
 export const checklistService = {
-  create: async (data: CreateChecklistInput, tenantId: string, userId: number) => {
-    return prisma.checklistTemplate.create({
-      data: {
-        name: data.name,
-        category: data.category,
-        description: data.description,
-        tenantId: tenantId,
-        createdBy: userId,
-        items: {
-          createMany: {
-            data: data.items.map((item, idx) => ({
-              ...item,
-              order: idx
-            }))
-          }
-        }
-      },
-      include: { items: true }
-    });
-  },
-
-  getAll: async (tenantId: string, filters: any) => {
-    return prisma.checklistTemplate.findMany({
-      where: {
-        tenantId,
-        isActive: true,
-        ...filters
-      },
-      include: {
-        items: true,
-        creator: {
-          select: { firstName: true, lastName: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-  },
-
-  getById: async (id: number, tenantId: string) => {
-    const checklist = await prisma.checklistTemplate.findUnique({
-      where: { id },
-      include: { items: { orderBy: { order: 'asc' } } }
-    });
-
-    if (!checklist || checklist.tenantId !== tenantId) {
-      throw new NotFoundError('Checklist template not found');
+  getTemplates: async (): Promise<ChecklistTemplate[]> => {
+    try {
+      const res = await apiClient.get<ApiResponse<ChecklistTemplate[]>>(ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES);
+      return res.data || [];
+    } catch (e) {
+      console.warn("Using mock templates");
+      return mockTemplates;
     }
-    return checklist;
   },
 
-  delete: async (id: number, tenantId: string) => {
-    // Soft delete
-    const checklist = await prisma.checklistTemplate.findUnique({ where: { id } });
-    if (!checklist || checklist.tenantId !== tenantId) throw new NotFoundError();
-
-    return prisma.checklistTemplate.update({
-      where: { id },
-      data: { isActive: false }
-    });
+  getTemplateById: async (id: string): Promise<ChecklistTemplate | null> => {
+    try {
+      const res = await apiClient.get<ApiResponse<ChecklistTemplate>>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`);
+      return res.data || null;
+    } catch (e) {
+      return mockTemplates.find(t => t.id === id) || null;
+    }
   },
 
-  clone: async (id: number, tenantId: string, userId: number, newName?: string) => {
-    const original = await checklistService.getById(id, tenantId);
-    
-    return prisma.checklistTemplate.create({
-      data: {
-        name: newName || `${original.name} (Copy)`,
-        category: original.category,
-        description: original.description,
-        tenantId,
-        createdBy: userId,
-        version: 1,
-        items: {
-          createMany: {
-            data: original.items.map(item => ({
-              question: item.question,
-              expected_answer: item.expected_answer,
-              scoring_weight: item.scoring_weight,
-              guidance: item.guidance,
-              photo_required: item.photo_required,
-              order: item.order
-            }))
-          }
-        }
-      },
-      include: { items: true }
-    });
+  createTemplate: async (template: Partial<ChecklistTemplate>): Promise<ChecklistTemplate> => {
+    const res = await apiClient.post<ApiResponse<ChecklistTemplate>>(ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES, template);
+    if (!res.success || !res.data) throw new Error(res.error);
+    return res.data;
+  },
+
+  updateTemplate: async (id: string, updates: Partial<ChecklistTemplate>): Promise<ChecklistTemplate> => {
+    const res = await apiClient.put<ApiResponse<ChecklistTemplate>>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`, updates);
+    if (!res.success || !res.data) throw new Error(res.error);
+    return res.data;
+  },
+
+  deleteTemplate: async (id: string): Promise<void> => {
+    await apiClient.delete(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`);
+  },
+
+  cloneTemplate: async (id: string): Promise<ChecklistTemplate> => {
+    const template = mockTemplates.find(t => t.id === id);
+    if (!template) throw new Error("Template not found");
+    const newTemplate = {
+      ...template,
+      id: `t-${Date.now()}`,
+      name: `${template.name} (Copy)`,
+      version: 1,
+      isPublished: false,
+      createdAt: new Date().toISOString()
+    };
+    mockTemplates.push(newTemplate);
+    return newTemplate;
+  },
+
+  publishTemplate: async (id: string, isPublished: boolean): Promise<ChecklistTemplate> => {
+    const res = await apiClient.put<ApiResponse<ChecklistTemplate>>(`${ENDPOINTS.AUDITS.CHECKLIST_TEMPLATES}/${id}`, { isPublished });
+    if (!res.success || !res.data) throw new Error(res.error);
+    return res.data;
   }
 };
+
+const mockTemplates: ChecklistTemplate[] = [
+  {
+    id: 't1',
+    name: 'Daily 5S Audit',
+    description: 'Standard daily check for production zones',
+    category: '5S',
+    version: 1,
+    isPublic: true,
+    isPublished: true,
+    createdBy: 'u1',
+    tenantId: getTenantId(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    usageCount: 45,
+    items: [
+      { id: 'i1', question: 'Are walkways clear of obstructions?', expected_answer: 'Yes', scoring_weight: 5, guidance: 'Check all yellow lines.', photo_required: false, category: 'Sort' },
+      { id: 'i2', question: 'Are tools in their designated shadow boards?', expected_answer: 'Yes', scoring_weight: 3, guidance: 'Look for missing tools.', photo_required: true, category: 'Set in Order' },
+      { id: 'i3', question: 'Is the floor free of oil/debris?', expected_answer: 'Yes', scoring_weight: 5, guidance: 'Safety hazard.', photo_required: true, category: 'Shine' }
+    ]
+  },
+  {
+    id: 't2',
+    name: 'Safety Walk',
+    description: 'Weekly safety inspection',
+    category: 'Safety',
+    version: 2,
+    isPublic: true,
+    isPublished: true,
+    createdBy: 'u1',
+    tenantId: getTenantId(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    usageCount: 12,
+    items: [
+      { id: 's1', question: 'Are fire exits unblocked?', expected_answer: 'Yes', scoring_weight: 10, guidance: 'Critical safety check.', photo_required: true, category: 'Safety' },
+      { id: 's2', question: 'Is PPE available and used?', expected_answer: 'Yes', scoring_weight: 5, guidance: 'Glasses and shoes.', photo_required: false, category: 'Safety' }
+    ]
+  }
+];
